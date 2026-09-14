@@ -20,7 +20,7 @@ yarn-error.log*
 pnpm-debug.log*
 
 uploads/
-storage/
+/storage/
 tmp/
 temp/
 .cache/
