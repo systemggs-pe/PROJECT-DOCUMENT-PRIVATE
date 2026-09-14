@@ -5,14 +5,31 @@
   "packageManager": "pnpm@11.19.0",
   "scripts": {
     "dev": "pnpm --filter \"./packages/**\" build && pnpm --parallel --filter @ggs/api --filter @ggs/web dev",
-    "build": "pnpm -r --if-present build",
-    "lint": "pnpm -r --if-present lint",
-    "test": "pnpm -r --if-present test",
-    "typecheck": "pnpm --filter \"./packages/**\" build && pnpm -r --if-present typecheck",
+    "build": "pnpm db:generate && pnpm -r --if-present build",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "prisma db seed",
+    "db:validate": "prisma validate",
+    "docker:postgres": "docker compose up -d postgres",
+    "lint": "eslint prisma.config.ts prisma/**/*.ts && pnpm -r --if-present lint",
+    "test": "pnpm db:generate && pnpm -r --if-present test",
+    "test:integration": "pnpm db:generate && pnpm --filter @ggs/api test:integration",
+    "typecheck": "pnpm db:generate && tsc -p tsconfig.json --noEmit && pnpm --filter \"./packages/**\" build && pnpm -r --if-present typecheck",
+    "verify:phase4": "node docs/examples/verify-phase4.mjs",
+    "verify:phase5": "node docs/examples/verify-phase5.mjs",
+    "verify:phase6": "node docs/examples/verify-phase6.mjs",
+    "verify:phase7": "node docs/examples/verify-phase7.mjs",
+    "verify:phase8": "node docs/examples/verify-phase8.mjs",
+    "verify:phase9": "node docs/examples/verify-phase9.mjs",
+    "verify:phase10": "node docs/examples/verify-phase10.mjs",
+    "verify:phase11": "node docs/examples/verify-phase11.mjs",
     "format": "prettier --write ."
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@supabase/supabase-js": "^2.116.0",
+    "@types/node": "^24.13.4",
+    "@types/pg": "^8.23.1",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
@@ -23,5 +40,11 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.50.0",
     "vitest": "^4.0.15"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.10.0",
+    "dotenv": "^17.4.2",
+    "pg": "^8.23.0"
   }
 }

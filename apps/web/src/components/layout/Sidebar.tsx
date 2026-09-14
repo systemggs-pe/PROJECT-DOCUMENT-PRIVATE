@@ -5,17 +5,17 @@ import { cn } from "@/lib/utils";
 import { useNavigationStore, type NavigationSection } from "@/stores/navigation-store";
 
 interface SidebarProps {
-  sections: Record<
+  sections: Partial<Record<
     NavigationSection,
     {
       title: string;
       description: string;
       icon: LucideIcon;
     }
-  >;
+  >>;
 }
 
-const sectionOrder: NavigationSection[] = ["dashboard", "templates", "generations", "settings"];
+const sectionOrder: NavigationSection[] = ["dashboard", "generate", "generations", "templates", "files", "organizations", "organization", "users", "roles", "audit", "settings"];
 
 export function Sidebar({ sections }: SidebarProps) {
   const currentSection = useNavigationStore((state) => state.currentSection);
@@ -30,13 +30,14 @@ export function Sidebar({ sections }: SidebarProps) {
           </div>
           <div>
             <p className="text-base font-semibold leading-tight">Document Studio</p>
-            <p className="text-sm text-[var(--muted)]">Fase 1</p>
+            <p className="text-sm text-[var(--muted)]">Fase 8</p>
           </div>
         </div>
 
         <nav className="grid gap-1">
           {sectionOrder.map((key) => {
             const section = sections[key];
+            if (!section) return null;
             const Icon = section.icon;
             const isActive = key === currentSection;
 
@@ -50,7 +51,11 @@ export function Sidebar({ sections }: SidebarProps) {
                   isActive && "bg-[var(--nav-active)] text-[var(--ink)]",
                 )}
                 aria-current={isActive ? "page" : undefined}
-                onClick={() => setCurrentSection(key)}
+                onClick={() => {
+                  setCurrentSection(key);
+                  const path = key === "templates" ? "/templates" : key === "generate" ? "/generate" : key === "files" ? "/files" : key === "generations" ? "/generations" : key === "organizations" ? "/organizations" : key === "organization" ? "/organization" : key === "users" ? "/users" : key === "roles" ? "/roles" : key === "audit" ? "/audit" : key === "settings" ? "/settings" : "/";
+                  if (window.location.pathname !== path) window.history.pushState(null, "", path);
+                }}
               >
                 <Icon className="size-4" aria-hidden={true} />
                 <span>{section.title}</span>

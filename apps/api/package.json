@@ -8,22 +8,33 @@
     "dev": "tsx watch src/main.ts",
     "lint": "eslint .",
     "start": "node dist/main.js",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run --passWithNoTests --exclude src/**/*.integration.spec.ts",
+    "test:integration": "vitest run src/common/database/database.integration.spec.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@ggs/pdf-engine": "workspace:*",
+    "@ggs/types": "workspace:*",
     "@nestjs/common": "^11.1.9",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.1.9",
     "@nestjs/platform-express": "^11.1.9",
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.10.0",
+    "@supabase/supabase-js": "^2.116.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.3",
+    "jose": "^6.2.12",
+    "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2"
+    "rxjs": "^7.8.2",
+    "sharp": "^0.35.4",
+    "zod": "^4.6.1"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^24.10.2",
+    "@types/pg": "^8.23.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.15"

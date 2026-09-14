@@ -11,11 +11,16 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
   const port = parsePort(process.env.PORT);
+  const configuredCorsOrigins = parseCorsOrigins(
+    configService.get<string>("CORS_ORIGIN") ?? "http://localhost:5173,http://127.0.0.1:5173",
+  );
 
   app.enableCors({
-    origin: parseCorsOrigins(
-      configService.get<string>("CORS_ORIGIN") ?? "http://localhost:5173,http://127.0.0.1:5173",
-    ),
+    origin: (origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) => {
+      const isDevelopmentLocalOrigin = process.env.NODE_ENV !== "production" && isLocalHttpOrigin(origin);
+      if (!origin || configuredCorsOrigins.includes(origin) || isDevelopmentLocalOrigin) callback(null, true);
+      else callback(new Error("Origin is not allowed by CORS"), false);
+    },
     credentials: true,
   });
 
@@ -36,6 +41,16 @@ function parseCorsOrigins(value: string): string[] {
     .split(",")
     .map((origin) => origin.trim())
     .filter((origin) => origin.length > 0);
+}
+
+function isLocalHttpOrigin(origin: string | undefined): boolean {
+  if (!origin) return false;
+  try {
+    const url = new URL(origin);
+    return url.protocol === "http:" && (url.hostname === "localhost" || url.hostname === "127.0.0.1") && url.port !== "";
+  } catch {
+    return false;
+  }
 }
 
 function parsePort(value: string | undefined): number {

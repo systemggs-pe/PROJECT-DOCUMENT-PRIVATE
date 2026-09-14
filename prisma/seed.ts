@@ -1,0 +1,227 @@
+import "dotenv/config";
+
+import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
+
+const databaseUrl =
+  process.env["DATABASE_URL"] ??
+  "postgresql://ggs:desarrollo-local@localhost:5432/ggs_document_studio?schema=public";
+const pool = new Pool({ connectionString: databaseUrl });
+const prisma = new PrismaClient({
+  adapter: new PrismaPg(pool),
+});
+
+const permissions = [
+  "users.read", "users.create", "users.update", "users.deactivate",
+  "organizations.read", "organizations.create", "organizations.update", "organizations.suspend",
+  "roles.read", "roles.create", "roles.update", "roles.delete",
+  "permissions.read", "permissions.assign",
+  "templates.read", "templates.create", "templates.update", "templates.delete",
+  "template_versions.read", "template_versions.create", "template_versions.update", "template_versions.delete",
+  "files.read", "files.upload", "files.delete",
+  "generations.read", "generations.create", "generations.delete", "generations.download",
+  "audit.read",
+] as const;
+
+const rolePermissionMap = {
+  SUPERADMIN: permissions,
+  ADMIN: [
+    "users.read", "users.create", "users.update", "users.deactivate",
+    "organizations.read",
+    "roles.read", "roles.create", "roles.update",
+    "permissions.read", "permissions.assign",
+    "templates.read", "templates.create", "templates.update", "templates.delete",
+    "template_versions.read", "template_versions.create", "template_versions.update", "template_versions.delete",
+    "files.read", "files.upload", "files.delete",
+    "generations.read", "generations.create", "generations.delete", "generations.download",
+  ],
+  USER: [
+    "templates.read", "templates.create", "templates.update", "templates.delete",
+    "template_versions.read", "template_versions.create", "template_versions.update", "template_versions.delete",
+    "files.read", "files.upload", "files.delete",
+    "generations.read", "generations.create", "generations.delete", "generations.download",
+  ],
+} as const;
+
+type RoleKey = keyof typeof rolePermissionMap;
+
+async function main(): Promise<void> {
+  const organization = await prisma.organization.upsert({
+    where: { slug: "demo-organization" },
+    update: {
+      name: "Organization Demo",
+      legalName: "GGS Demo",
+      status: "ACTIVE",
+    },
+    create: {
+      id: "00000000-0000-4000-8000-000000000201",
+      name: "Organization Demo",
+      slug: "demo-organization",
+      legalName: "GGS Demo",
+      status: "ACTIVE",
+    },
+  });
+
+  for (const key of permissions) {
+    await prisma.permission.upsert({
+      where: { key },
+      update: { name: humanizePermission(key), metadata: { group: key.split(".")[0] } },
+      create: { key, name: humanizePermission(key), metadata: { group: key.split(".")[0] } },
+    });
+  }
+
+  const roles = {} as Record<RoleKey, { id: string }>;
+  for (const key of Object.keys(rolePermissionMap) as RoleKey[]) {
+    roles[key] = await prisma.role.upsert({
+      where: { key },
+      update: { name: roleName(key), isSystem: true, isActive: true },
+      create: { key, name: roleName(key), isSystem: true, isActive: true },
+      select: { id: true },
+    });
+    const rolePermissions = await prisma.permission.findMany({ where: { key: { in: [...rolePermissionMap[key]] } }, select: { id: true } });
+    await prisma.rolePermission.deleteMany({ where: { roleId: roles[key].id } });
+    await prisma.rolePermission.createMany({ data: rolePermissions.map((permission) => ({ roleId: roles[key].id, permissionId: permission.id })), skipDuplicates: true });
+  }
+
+  const demoUser = await prisma.user.upsert({
+    where: {
+      email: "demo@ggs.local",
+    },
+    update: {
+      name: "Demo User",
+      isActive: true,
+      organizationId: organization.id,
+    },
+    create: {
+      email: "demo@ggs.local",
+      authProviderId: "demo-local-user",
+      name: "Demo User",
+      organizationId: organization.id,
+    },
+  });
+
+  await prisma.userRole.upsert({
+    where: { userId_roleId: { userId: demoUser.id, roleId: roles.USER.id } },
+    update: {},
+    create: { userId: demoUser.id, roleId: roles.USER.id },
+  });
+
+  const template = await prisma.template.upsert({
+    where: {
+      id: "00000000-0000-4000-8000-000000000101",
+    },
+    update: {
+      name: "DNI + Foto",
+      description: "Plantilla demo para comprobar image slots dinamicos.",
+      status: "ACTIVE",
+      organizationId: organization.id,
+    },
+    create: {
+      id: "00000000-0000-4000-8000-000000000101",
+      name: "DNI + Foto",
+      description: "Plantilla demo para comprobar image slots dinamicos.",
+      status: "ACTIVE",
+      createdById: demoUser.id,
+      organizationId: organization.id,
+    },
+  });
+
+  const version = await prisma.templateVersion.upsert({
+    where: {
+      templateId_versionNumber: {
+        templateId: template.id,
+        versionNumber: 1,
+      },
+    },
+    update: {
+      isActive: true,
+    },
+    create: {
+      templateId: template.id,
+      versionNumber: 1,
+      paperSize: "A4",
+      orientation: "PORTRAIT",
+      width: 595.28,
+      height: 841.89,
+      marginTop: 28.35,
+      marginRight: 28.35,
+      marginBottom: 28.35,
+      marginLeft: 28.35,
+      isActive: true,
+    },
+  });
+
+  await prisma.templateElement.createMany({
+    data: [
+      imageSlot(version.id, "dni_front", "DNI frontal", 56.7, 96, 226.8, 141.7, 1),
+      imageSlot(version.id, "dni_back", "DNI trasero", 311.8, 96, 226.8, 141.7, 2),
+      imageSlot(version.id, "photo", "Foto", 56.7, 278.4, 113.4, 141.7, 3),
+    ],
+    skipDuplicates: true,
+  });
+
+  await prisma.generationCounter.upsert({
+    where: {
+      key: "default",
+    },
+    update: {},
+    create: {
+      key: "default",
+      prefix: "GGS",
+      padding: 6,
+      currentValue: 0,
+    },
+  });
+}
+
+function humanizePermission(key: string) {
+  const [resource = "permiso", action = "usar"] = key.split(".");
+  return `${resource.replaceAll("_", " ")} ${action}`;
+}
+
+function roleName(key: RoleKey) {
+  return key === "SUPERADMIN" ? "Superadministrador" : key === "ADMIN" ? "Administrador" : "Usuario";
+}
+
+function imageSlot(
+  templateVersionId: string,
+  key: string,
+  name: string,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  zIndex: number,
+) {
+  return {
+    templateVersionId,
+    type: "IMAGE" as const,
+    key,
+    name,
+    page: 1,
+    x,
+    y,
+    width,
+    height,
+    rotation: 0,
+    zIndex,
+    required: true,
+    properties: {
+      fitMode: "contain",
+      border: true,
+      borderWidth: 1,
+      borderRadius: 0,
+    },
+  };
+}
+
+main()
+  .catch((error: unknown) => {
+    console.error(error);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+    await pool.end();
+  });

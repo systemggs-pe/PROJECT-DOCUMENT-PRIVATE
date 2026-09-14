@@ -1,0 +1,125 @@
+import { BadRequestException } from "@nestjs/common";
+import { describe, expect, it, vi } from "vitest";
+
+import type { GenerationNumberService } from "../../common/database/generation-number.service";
+import type { PrismaService } from "../../common/database/prisma.service";
+import type { PdfService } from "../pdf/pdf.service";
+import type { CurrentUser } from "../auth/types/current-user";
+import type { StorageService } from "../storage/storage.service";
+import type { GenerationsService } from "./generations.service";
+import { GenerationRunnerService } from "./generation-runner.service";
+
+const userId = "11111111-1111-4111-8111-111111111111";
+const organizationId = "00000000-0000-4000-8000-000000000201";
+const templateId = "22222222-2222-4222-8222-222222222222";
+const versionId = "33333333-3333-4333-8333-333333333333";
+const imageId = "44444444-4444-4444-8444-444444444444";
+
+describe("GenerationRunnerService", () => {
+  it("resolves dynamic slots and variables before reserving a number", async () => {
+    const render = vi.fn().mockResolvedValue(Buffer.from("%PDF-test"));
+    const generation = { id: "55555555-5555-4555-8555-555555555555", number: "GGS-000042" };
+    const tx = makeTransaction({ generation, renderVersion: version() });
+    const storage = makeStorage();
+    const service = makeRunner(tx, storage, render);
+
+    const result = await service.generate(actor(userId), {
+      templateId,
+      templateVersionId: versionId,
+      requestKey: "66666666-6666-4666-8666-666666666666",
+      inputs: { photo: { storedFileId: imageId } },
+      variables: { customer_name: "Ana" },
+    });
+
+    expect(result).toEqual(expect.objectContaining({ id: "generation-result" }));
+    expect(render).toHaveBeenCalledWith(expect.objectContaining({ elements: expect.arrayContaining([expect.objectContaining({ type: "IMAGE", assetKey: imageId }), expect.objectContaining({ type: "TEXT", properties: expect.objectContaining({ text: "Cliente: Ana" }) })]) }), expect.arrayContaining([expect.objectContaining({ key: imageId })]));
+    expect(tx.generation.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ number: generation.number, status: "PROCESSING" }) }));
+    expect(tx.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: "GENERATE" }) }));
+  });
+
+  it("rejects an unknown input slot before reading storage or reserving a number", async () => {
+    const render = vi.fn();
+    const tx = makeTransaction({ renderVersion: version() });
+    const storage = makeStorage();
+    const numbers = { next: vi.fn() };
+    const service = makeRunner(tx, storage, render, numbers);
+
+    await expect(service.generate(actor(userId), {
+      templateVersionId: versionId,
+      requestKey: "77777777-7777-4777-8777-777777777777",
+      inputs: [{ key: "not_in_template", fileId: imageId }],
+    })).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(storage.read).not.toHaveBeenCalled();
+    expect(numbers.next).not.toHaveBeenCalled();
+    expect(render).not.toHaveBeenCalled();
+  });
+
+  it("removes a generated object and marks the reserved generation failed when upload fails", async () => {
+    const tx = makeTransaction({ generation: { id: "88888888-8888-4888-8888-888888888888", number: "GGS-000043" }, renderVersion: version() });
+    const storage = makeStorage();
+    storage.put.mockRejectedValue(new Error("storage down"));
+    const service = makeRunner(tx, storage, vi.fn().mockResolvedValue(Buffer.from("%PDF-test")));
+
+    await expect(service.generate(actor(userId), {
+      templateVersionId: versionId,
+      requestKey: "99999999-9999-4999-8999-999999999999",
+      inputs: [{ key: "photo", fileId: imageId }],
+    })).rejects.toThrow("No se pudo generar el documento");
+
+    expect(storage.remove).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`^organizations/${organizationId}/generations/`)));
+    expect(tx.generation.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "FAILED" }) }));
+  });
+});
+
+function makeRunner(tx: ReturnType<typeof makeTransaction>, storage: ReturnType<typeof makeStorage>, render: ReturnType<typeof vi.fn>, numbers = { next: vi.fn().mockResolvedValue({ sequenceNumber: 42, number: "GGS-000042" }) }) {
+  const prisma = { client: { $transaction: vi.fn(async (callback: (value: typeof tx) => unknown) => callback(tx)) } } as unknown as PrismaService;
+  const pdf = { renderTemplateVersion: render } as unknown as PdfService;
+  const generations = { findOwnedOrThrow: vi.fn().mockResolvedValue({ id: "generation-result", status: "COMPLETED" }) } as unknown as GenerationsService;
+  return new GenerationRunnerService(prisma, numbers as unknown as GenerationNumberService, storage as unknown as StorageService, pdf, generations);
+}
+
+function makeStorage() {
+  return { bucket: "ggs-documents", read: vi.fn().mockResolvedValue(Buffer.from("image")), put: vi.fn().mockResolvedValue(undefined), remove: vi.fn().mockResolvedValue(undefined) };
+}
+
+function makeTransaction({ generation, renderVersion }: { generation?: { id: string; number: string }; renderVersion: ReturnType<typeof version> }) {
+  const created = generation ? { ...generation, status: "PROCESSING" } : null;
+  return {
+    $queryRaw: vi.fn().mockResolvedValue([{ id: userId }]),
+    generation: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue(created),
+      update: vi.fn().mockResolvedValue({}),
+    },
+    templateVersion: { findFirst: vi.fn().mockResolvedValue(renderVersion) },
+    storedFile: {
+      findMany: vi.fn().mockResolvedValue([{ id: imageId, storageKey: `organizations/${organizationId}/files/${imageId}/original.jpg`, bucket: "ggs-documents", mimeType: "image/jpeg", originalName: "photo.jpg" }]),
+      create: vi.fn().mockResolvedValue({ id: "output-file" }),
+    },
+    auditLog: { create: vi.fn().mockResolvedValue({}) },
+  };
+}
+
+function actor(id: string): CurrentUser {
+  const roles = [{ id: "USER", key: "USER", name: "Usuario", isSystem: true }];
+  return { id, authProviderId: id, email: `${id}@example.com`, name: null, avatarUrl: null, isActive: true, status: "ACTIVE", organizationId, organization: { id: organizationId, name: "Org Demo", slug: "demo-organization", status: "ACTIVE" }, roles, permissions: [], authorization: { roles, permissions: [] } };
+}
+
+function version() {
+  return {
+    id: versionId,
+    templateId,
+    versionNumber: 1,
+    paperSize: "A4",
+    orientation: "PORTRAIT",
+    width: { toNumber: () => 595.28 },
+    height: { toNumber: () => 841.89 },
+    pageCount: 1,
+    elements: [
+      { id: "slot-photo", type: "IMAGE", name: "Foto", key: "photo", page: 1, x: 20, y: 20, width: 100, height: 100, rotation: 0, zIndex: 1, required: true, properties: { fitMode: "contain" } },
+      { id: "text-customer", type: "TEXT", name: "Cliente", key: null, page: 1, x: 20, y: 140, width: 200, height: 30, rotation: 0, zIndex: 2, required: false, properties: { text: "Cliente: {{customer_name}}", fontSize: 12 } },
+    ],
+    template: { id: templateId, name: "DNI" },
+  };
+}

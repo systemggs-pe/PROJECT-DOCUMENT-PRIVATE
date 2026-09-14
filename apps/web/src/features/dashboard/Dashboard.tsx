@@ -5,6 +5,7 @@ import { useHealth } from "@/hooks/useHealth";
 export function Dashboard() {
   const health = useHealth();
   const isApiOnline = health.data?.status === "ok";
+  const databaseLabel = health.data?.database === "connected" ? "Conectada" : "Pendiente";
 
   return (
     <div className="grid gap-5">
@@ -29,17 +30,17 @@ export function Dashboard() {
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <Metric icon={Server} label="Backend" value={health.data?.service ?? "Pendiente"} />
-        <Metric icon={Database} label="Base de datos" value="Preparada para Prisma" />
-        <Metric icon={FileText} label="PDF engine" value="Contrato inicial" />
-        <Metric icon={Activity} label="Estado" value={health.isLoading ? "Consultando" : "Fase 1"} />
+        <Metric icon={Database} label="Base de datos" value={databaseLabel} />
+        <Metric icon={FileText} label="PDF engine" value="Listo para generar" />
+        <Metric icon={Activity} label="Estado" value={health.isLoading ? "Consultando" : "Fase 6"} />
       </section>
 
       <section className="grid gap-3 rounded-md border border-[var(--line)] bg-[var(--panel)] p-5">
         <h3 className="text-lg font-semibold">Alcance actual</h3>
         <div className="grid gap-3 md:grid-cols-3">
-          <PhaseItem title="Disponible" text="Shell web, API health check, paquetes compartidos y Prisma inicial." />
-          <PhaseItem title="Siguiente" text="Modelos PostgreSQL, Prisma Client y migraciones de la Fase 2." />
-          <PhaseItem title="Diferido" text="Editor visual, auth, storage real, generación PDF e historial." />
+          <PhaseItem title="Identidad" text="Supabase Auth, usuario local y ownership aplicado en el backend." />
+          <PhaseItem title="Plantillas" text="Editor visual, paginas, slots de imagen, propiedades, zoom y versionado." />
+          <PhaseItem title="Archivos" text="Carga validada de imagenes, almacenamiento privado, URLs firmadas y borrado seguro." />
         </div>
       </section>
     </div>

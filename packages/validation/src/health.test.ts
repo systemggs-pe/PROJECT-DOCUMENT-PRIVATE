@@ -8,10 +8,12 @@ describe("healthStatusSchema", () => {
       healthStatusSchema.parse({
         status: "ok",
         service: "ggs-document-studio-api",
+        database: "connected",
       }),
     ).toEqual({
       status: "ok",
       service: "ggs-document-studio-api",
+      database: "connected",
     });
   });
 });

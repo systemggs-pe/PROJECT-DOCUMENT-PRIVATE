@@ -6,14 +6,40 @@ export interface JsonObject {
 
 export type PaperSize = "A4" | "A5" | "LETTER" | "LEGAL" | "CUSTOM";
 export type Orientation = "PORTRAIT" | "LANDSCAPE";
-export type ElementType = "IMAGE" | "TEXT" | "RECTANGLE" | "LINE";
-export type ImageFitMode = "contain" | "cover" | "stretch";
+export type TemplateStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
+export type ElementType =
+  | "IMAGE"
+  | "TEXT"
+  | "RECTANGLE"
+  | "LINE"
+  | "QR_CODE"
+  | "BARCODE"
+  | "SIGNATURE"
+  | "DATE"
+  | "PAGE_NUMBER"
+  | "LOGO";
+export type ImageFitMode = "contain" | "cover" | "fill" | "stretch";
+export type StoredFileType = "IMAGE" | "PDF";
+export type GenerationStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
+export type AuditAction = "CREATE" | "UPDATE" | "DELETE" | "DOWNLOAD" | "GENERATE" | "LOGIN";
+export type AuditEntityType =
+  | "USER"
+  | "TEMPLATE"
+  | "TEMPLATE_VERSION"
+  | "TEMPLATE_ELEMENT"
+  | "GENERATION"
+  | "GENERATION_INPUT"
+  | "STORED_FILE";
 
 export interface DocumentDefinition {
   pageSize: PaperSize;
   orientation: Orientation;
   pages: PageDefinition[];
   assets: AssetDefinition[];
+  metadata?: {
+    title?: string;
+    author?: string;
+  };
 }
 
 export interface PageDefinition {
@@ -43,9 +69,10 @@ export interface ImageElementDefinition extends BaseElementDefinition {
   assetKey?: string;
   properties: {
     fitMode: ImageFitMode;
-    border: boolean;
-    borderWidth: number;
-    borderRadius: number;
+    border?: boolean;
+    borderWidth?: number;
+    borderRadius?: number;
+    borderColor?: string;
   };
 }
 
@@ -54,8 +81,10 @@ export interface TextElementDefinition extends BaseElementDefinition {
   properties: {
     text: string;
     fontSize: number;
-    fontFamily: string;
-    color: string;
+    fontFamily?: string;
+    fontWeight?: "400" | "500" | "600" | "700" | "normal" | "bold";
+    textAlign?: "left" | "center" | "right" | "justify";
+    color?: string;
   };
 }
 
@@ -64,7 +93,8 @@ export interface RectangleElementDefinition extends BaseElementDefinition {
   properties: {
     fill?: string;
     stroke?: string;
-    strokeWidth: number;
+    strokeWidth?: number;
+    borderRadius?: number;
   };
 }
 
@@ -72,7 +102,7 @@ export interface LineElementDefinition extends BaseElementDefinition {
   type: "LINE";
   properties: {
     stroke: string;
-    strokeWidth: number;
+    strokeWidth?: number;
   };
 }
 

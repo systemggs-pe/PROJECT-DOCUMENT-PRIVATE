@@ -2,7 +2,7 @@
 
 GGS Document Studio is a professional document-template platform for creating reusable visual templates, collecting the image inputs required by each template, and generating private PDFs with traceable metadata.
 
-The project is being built in phases. This repository currently contains the Phase 1 foundation: a pnpm TypeScript monorepo, a React frontend, a NestJS API, shared packages, Prisma configuration, and architecture documentation.
+The project is being built in phases. This repository currently contains the Phase 8 individual-generation slice: a pnpm TypeScript monorepo, a React frontend, a NestJS API, shared packages, Prisma/PostgreSQL, Supabase Auth, ownership checks, template/version management, a visual template editor, private uploads, dynamic PDF generation, atomic correlatives, protected downloads, history, and architecture documentation.
 
 ## Architecture
 
@@ -23,8 +23,9 @@ PostgreSQL is the source of truth for metadata such as templates, versions, elem
 - Backend: NestJS, TypeScript
 - Database: PostgreSQL through Prisma
 - Storage: Supabase Storage initially, behind a future provider abstraction
-- Authentication: Supabase Auth in a later phase
-- PDF: `packages/pdf-engine`, with PDFKit planned behind an internal interface
+- Authentication: Supabase Auth, with NestJS JWT validation and backend ownership checks
+- Authorization: PostgreSQL RBAC through roles and permission guards
+- PDF: `packages/pdf-engine`, with PDFKit behind an internal interface
 
 ## Folder Structure
 
@@ -61,10 +62,41 @@ Backend:
 - `DATABASE_URL`
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_JWT_SECRET`
+- `SUPABASE_JWKS_URL`
+- `SUPABASE_JWT_AUDIENCE`
 - `PORT`
 - `CORS_ORIGIN`
+- `SUPERADMIN_EMAIL`
+
+`SUPABASE_SERVICE_ROLE_KEY` is a backend-only secret. Never expose it through `VITE_*`, logs, responses, or frontend code. JWT validation uses Supabase JWKS when available, or `SUPABASE_JWT_SECRET` for legacy HS256 projects.
+
+`SUPERADMIN_EMAIL` is backend-only bootstrap configuration for the first superadmin role assignment. It does not belong in frontend variables.
 
 ## Development
+
+Start local PostgreSQL:
+
+```powershell
+docker compose up -d postgres
+pnpm exec prisma migrate dev
+pnpm exec prisma db seed
+```
+
+Stop local PostgreSQL:
+
+```powershell
+docker compose down
+```
+
+Reset the local database volume when you intentionally want a clean development database:
+
+```powershell
+docker compose down -v
+docker compose up -d postgres
+pnpm exec prisma migrate dev
+pnpm exec prisma db seed
+```
 
 ```powershell
 pnpm dev
@@ -85,8 +117,24 @@ pnpm --filter @ggs/web dev
 pnpm typecheck
 pnpm lint
 pnpm test
+pnpm test:integration
 pnpm build
+pnpm verify:phase4
+pnpm verify:phase5
+pnpm verify:phase6
+pnpm verify:phase8
+pnpm verify:phase9
 ```
+
+The Phase 4 example creates disposable Supabase identities, creates a template through HTTP, uploads a synthetic image, generates and downloads a real PDF, verifies ownership and idempotency, and removes all temporary database, storage, and Auth fixtures. It never uses personal documents or prints credentials.
+
+The Phase 5 example creates disposable Supabase identities, saves a visual editor layout with IMAGE, TEXT, RECTANGLE, and LINE elements, reloads persisted coordinates, duplicates the version, verifies ownership, and removes temporary fixtures.
+
+The Phase 6 example creates disposable Supabase identities, uploads synthetic JPEG/PNG/WebP images, verifies private Storage, owner-scoped metadata, signed URLs, invalid-file rejection, safe deletion, audit logs, and cleanup.
+
+The Phase 8 example creates a dynamic template with an image slot and text variable, generates a private PDF, verifies protected download, idempotency, required and unknown slot rejection, and twenty concurrent unique correlatives. It removes all temporary database, Storage, and Auth fixtures.
+
+The Phase 9 example creates real generations for two users, verifies PostgreSQL pagination, search, combined filters, safe sorting, exact-version detail, temporary signed URLs, PDF download, cross-user isolation, safe deletion, audit preservation, and cleanup.
 
 ## API Health Check
 
@@ -105,9 +153,17 @@ Expected response:
 }
 ```
 
+## Authentication
+
+The frontend uses a single Supabase client for login, registration, OAuth redirect, logout, and session refresh. The API client reads the current Supabase access token and sends it as `Authorization: Bearer <token>` for protected endpoints.
+
+The backend is protected by default through a global AuthGuard. `GET /health` is public. `GET /auth/me`, templates, generations, and files require a valid Supabase access token. User identity is resolved from the verified JWT and synchronized to `users.auth_provider_id`; the frontend is never trusted as the source of `createdById`.
+
+Fase 10 adds database-backed RBAC. `/auth/me` returns safe roles and permissions, the sidebar reflects those permissions, and the API enforces protected actions through `@Permissions(...)`. Fase 11 adds organizations, tenant ownership, organization administration, suspension/activation, and cross-tenant isolation. See `docs/authorization.md` and `docs/multi-tenancy.md`.
+
 ## Prisma
 
-The initial Prisma schema is configured for PostgreSQL. In Prisma 7, the database URL is read from `prisma.config.ts`, while the provider remains in `prisma/schema.prisma`. Full data models will be added in Phase 2 after the database design is finalized.
+The Prisma schema is configured for PostgreSQL. In Prisma 7, the database URL is read from `prisma.config.ts`, while the provider remains in `prisma/schema.prisma`.
 
 ```powershell
 pnpm prisma validate
@@ -115,4 +171,4 @@ pnpm prisma validate
 
 ## Phase Notes
 
-Phase 1 intentionally does not implement the visual editor, PDF generation, real file uploads, Supabase Auth, storage operations, generation history, audit logging, or correlational numbering. Those capabilities belong to later phases.
+Phase 6 adds the private file library and Storage infrastructure: validated image uploads, backend-generated storage paths, `StoredFile` metadata, owner-scoped list/detail/signed URL/delete endpoints, local and stored previews, audit logs, and cleanup on normal failure paths. Phase 7 adds the independent in-memory PDF engine for IMAGE, TEXT, RECTANGLE, and LINE elements with paper sizes, orientation, coordinates, rotation, image fitting, validation, and deterministic metadata. Phase 8 adds dynamic individual generation, safe variables, atomic correlatives, private PDF output, protected downloads, idempotency, failure compensation, and the `/generate` workflow. Phase 9 adds paginated history, server-side search and filters, exact-version detail, protected downloads, signed URLs on demand, safe deletion and responsive history UX. Phase 10 adds RBAC, users, roles, permissions, dynamic navigation, route 403, and privilege-escalation protections. Phase 11 adds organizations, tenant ownership, organization administration, suspension/activation, and cross-tenant isolation. Bulk generation, queues, billing, collaboration, OCR, and real QR/barcodes remain outside the current scope.

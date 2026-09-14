@@ -10,3 +10,9 @@ allowBuilds:
   "@prisma/engines": true
   esbuild: true
   prisma: true
+  sharp: true
+
+overrides:
+  multer: ^2.3.0
+  mysql2: ^3.23.1
+  deepmerge-ts: ^8.0.0

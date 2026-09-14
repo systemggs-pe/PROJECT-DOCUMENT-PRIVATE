@@ -6,14 +6,14 @@ import type { NavigationSection } from "@/stores/navigation-store";
 
 interface AppShellProps {
   children: React.ReactNode;
-  sections: Record<
+  sections: Partial<Record<
     NavigationSection,
     {
       title: string;
       description: string;
       icon: LucideIcon;
     }
-  >;
+  >>;
 }
 
 export function AppShell({ children, sections }: AppShellProps) {

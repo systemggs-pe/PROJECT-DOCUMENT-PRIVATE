@@ -5,3 +5,388 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum TemplateStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum PaperSize {
+  A4
+  A5
+  LETTER
+  LEGAL
+  CUSTOM
+}
+
+enum Orientation {
+  PORTRAIT
+  LANDSCAPE
+}
+
+enum TemplateElementType {
+  IMAGE
+  TEXT
+  RECTANGLE
+  LINE
+  QR_CODE
+  BARCODE
+  SIGNATURE
+  DATE
+  PAGE_NUMBER
+  LOGO
+}
+
+enum StoredFileType {
+  IMAGE
+  PDF
+}
+
+enum GenerationStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  DOWNLOAD
+  GENERATE
+  LOGIN
+  ASSIGN
+  REMOVE
+}
+
+enum AuditEntityType {
+  ORGANIZATION
+  USER
+  ROLE
+  PERMISSION
+  TEMPLATE
+  TEMPLATE_VERSION
+  TEMPLATE_ELEMENT
+  GENERATION
+  GENERATION_INPUT
+  STORED_FILE
+}
+
+model Organization {
+  id             String             @id @default(uuid()) @db.Uuid
+  name           String
+  slug           String             @unique
+  legalName      String?            @map("legal_name")
+  documentNumber String?            @map("document_number")
+  email          String?
+  phone          String?
+  address        String?
+  status         OrganizationStatus @default(ACTIVE)
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+
+  users       User[]
+  roles       Role[]
+  templates   Template[]
+  generations Generation[]
+  storedFiles StoredFile[]
+  auditLogs   AuditLog[]
+
+  @@index([slug])
+  @@index([status])
+  @@map("organizations")
+}
+
+model User {
+  id             String    @id @default(uuid()) @db.Uuid
+  authProviderId String?   @unique @map("auth_provider_id")
+  email          String    @unique
+  name           String?
+  avatarUrl      String?   @map("avatar_url")
+  isActive       Boolean   @default(true) @map("is_active")
+  managedById    String?   @map("managed_by_id") @db.Uuid
+  organizationId String?   @map("organization_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  lastLoginAt    DateTime? @map("last_login_at")
+
+  templates   Template[]
+  generations Generation[]
+  storedFiles StoredFile[]
+  auditLogs   AuditLog[]
+  userRoles   UserRole[]
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  managedBy   User?      @relation("ManagedUsers", fields: [managedById], references: [id], onDelete: SetNull)
+  managedUsers User[]    @relation("ManagedUsers")
+
+  @@index([email])
+  @@index([authProviderId])
+  @@index([managedById])
+  @@index([organizationId])
+  @@map("users")
+}
+
+model Role {
+  id          String    @id @default(uuid()) @db.Uuid
+  key         String    @unique
+  name        String
+  description String?
+  isSystem    Boolean   @default(false) @map("is_system")
+  isActive    Boolean   @default(true) @map("is_active")
+  organizationId String? @map("organization_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([key])
+  @@index([isActive])
+  @@index([organizationId])
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid()) @db.Uuid
+  key         String   @unique
+  name        String
+  description String?
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  rolePermissions RolePermission[]
+
+  @@index([key])
+  @@map("permissions")
+}
+
+model UserRole {
+  userId    String   @map("user_id") @db.Uuid
+  roleId    String   @map("role_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       String   @map("role_id") @db.Uuid
+  permissionId String   @map("permission_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Restrict)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+model Template {
+  id          String         @id @default(uuid()) @db.Uuid
+  name        String
+  description String?
+  status      TemplateStatus @default(DRAFT)
+  createdById String         @map("created_by_id") @db.Uuid
+  organizationId String      @map("organization_id") @db.Uuid
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  createdBy   User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  versions    TemplateVersion[]
+  generations Generation[]
+
+  @@index([createdById])
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([status])
+  @@index([createdAt])
+  @@map("templates")
+}
+
+model TemplateVersion {
+  id            String      @id @default(uuid()) @db.Uuid
+  templateId    String      @map("template_id") @db.Uuid
+  versionNumber Int         @map("version_number")
+  paperSize     PaperSize   @map("paper_size")
+  orientation   Orientation
+  width         Decimal     @db.Decimal(10, 3)
+  height        Decimal     @db.Decimal(10, 3)
+  marginTop     Decimal     @default(0) @map("margin_top") @db.Decimal(10, 3)
+  marginRight   Decimal     @default(0) @map("margin_right") @db.Decimal(10, 3)
+  marginBottom  Decimal     @default(0) @map("margin_bottom") @db.Decimal(10, 3)
+  marginLeft    Decimal     @default(0) @map("margin_left") @db.Decimal(10, 3)
+  isActive      Boolean     @default(false) @map("is_active")
+  pageCount     Int         @default(1) @map("page_count")
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  template    Template          @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  elements    TemplateElement[]
+  generations Generation[]
+
+  @@unique([templateId, versionNumber])
+  @@index([templateId])
+  @@index([templateId, isActive])
+  @@index([isActive])
+  @@map("template_versions")
+}
+
+model TemplateElement {
+  id                String              @id @default(uuid()) @db.Uuid
+  templateVersionId String              @map("template_version_id") @db.Uuid
+  type              TemplateElementType
+  name              String
+  key               String?
+  page              Int
+  x                 Decimal             @db.Decimal(10, 3)
+  y                 Decimal             @db.Decimal(10, 3)
+  width             Decimal             @db.Decimal(10, 3)
+  height            Decimal             @db.Decimal(10, 3)
+  rotation          Decimal             @default(0) @db.Decimal(7, 3)
+  zIndex            Int                 @default(0) @map("z_index")
+  required          Boolean             @default(false)
+  properties        Json                @default("{}")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+
+  templateVersion  TemplateVersion   @relation(fields: [templateVersionId], references: [id], onDelete: Restrict)
+  generationInputs GenerationInput[]
+
+  @@unique([templateVersionId, key])
+  @@index([templateVersionId])
+  @@index([templateVersionId, type])
+  @@index([key])
+  @@index([type])
+  @@map("template_elements")
+}
+
+model StoredFile {
+  id           String         @id @default(uuid()) @db.Uuid
+  originalName String         @map("original_name")
+  storageKey   String         @unique @map("storage_key")
+  bucket       String
+  type         StoredFileType
+  mimeType     String         @map("mime_type")
+  sizeBytes    BigInt         @map("size_bytes")
+  checksum     String?
+  width        Int?
+  height       Int?
+  metadata     Json           @default("{}")
+  createdById  String         @map("created_by_id") @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  createdBy           User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  organization        Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  generationInputs    GenerationInput[]
+  outputForGeneration Generation?       @relation("GenerationOutputFile")
+
+  @@index([createdById])
+  @@index([organizationId])
+  @@index([organizationId, type])
+  @@index([type])
+  @@index([createdAt])
+  @@map("stored_files")
+}
+
+model Generation {
+  id                String           @id @default(uuid()) @db.Uuid
+  sequenceNumber    Int              @unique @map("sequence_number")
+  number            String           @unique
+  templateId        String           @map("template_id") @db.Uuid
+  templateVersionId String           @map("template_version_id") @db.Uuid
+  createdById       String           @map("created_by_id") @db.Uuid
+  organizationId    String           @map("organization_id") @db.Uuid
+  outputFileId      String?          @unique @map("output_file_id") @db.Uuid
+  status            GenerationStatus @default(PENDING)
+  errorMessage      String?          @map("error_message")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  startedAt         DateTime?        @map("started_at")
+  completedAt       DateTime?        @map("completed_at")
+  requestKey        String?          @map("request_key") @db.Uuid
+  requestHash       String?          @map("request_hash")
+  snapshot          Json?
+
+  template        Template          @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  templateVersion TemplateVersion   @relation(fields: [templateVersionId], references: [id], onDelete: Restrict)
+  createdBy       User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  outputFile      StoredFile?       @relation("GenerationOutputFile", fields: [outputFileId], references: [id], onDelete: Restrict)
+  inputs          GenerationInput[]
+
+  @@index([templateId])
+  @@index([templateVersionId])
+  @@index([createdById])
+  @@index([organizationId])
+  @@index([organizationId, createdAt])
+  @@index([createdById, createdAt])
+  @@index([status])
+  @@unique([createdById, requestKey])
+  @@index([createdAt])
+  @@map("generations")
+}
+
+model GenerationInput {
+  id                String   @id @default(uuid()) @db.Uuid
+  generationId      String   @map("generation_id") @db.Uuid
+  templateElementId String   @map("template_element_id") @db.Uuid
+  key               String
+  value             Json?
+  fileId            String?  @map("file_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  generation      Generation      @relation(fields: [generationId], references: [id], onDelete: Restrict)
+  templateElement TemplateElement @relation(fields: [templateElementId], references: [id], onDelete: Restrict)
+  file            StoredFile?     @relation(fields: [fileId], references: [id], onDelete: Restrict)
+
+  @@index([generationId])
+  @@index([templateElementId])
+  @@index([fileId])
+  @@map("generation_inputs")
+}
+
+model AuditLog {
+  id         String          @id @default(uuid()) @db.Uuid
+  userId     String?         @map("user_id") @db.Uuid
+  organizationId String?     @map("organization_id") @db.Uuid
+  action     AuditAction
+  entityType AuditEntityType @map("entity_type")
+  entityId   String?         @map("entity_id") @db.Uuid
+  metadata   Json            @default("{}")
+  createdAt  DateTime        @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model GenerationCounter {
+  key          String   @id
+  prefix       String   @default("GGS")
+  padding      Int      @default(6)
+  currentValue Int      @default(0) @map("current_value")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("generation_counters")
+}
