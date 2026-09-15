@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, FileImage, ImagePlus, LoaderCircle, Search, Trash2, UploadCloud } from "lucide-react";
 
+import { ImageCaptureActions } from "@/components/ImageCaptureActions";
 import { Button } from "@/components/ui/button";
 import { apiFetch, apiJson, downloadFile } from "@/lib/api";
 import { formatBytes, validateFile, type FilePage, type StoredFile } from "./file-model";
@@ -69,12 +70,12 @@ function FileUploader({ busy, error, onUpload }: { busy: boolean; error: string;
     setSelection(file ? { file, preview: URL.createObjectURL(file) } : null);
   }
   return <section className="file-uploader" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); choose(event.dataTransfer.files[0]); }}>
-    <label className="upload-dropzone">
+    <div className="upload-dropzone">
       <UploadCloud className="size-6" />
       <span>{selected ? selected.name : "Arrastra una imagen o selecciona un archivo"}</span>
       <small>JPG, PNG o WebP, maximo 10 MB. SVG y ejecutables no estan permitidos.</small>
-      <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => choose(event.target.files?.[0])} />
-    </label>
+      <ImageCaptureActions onSelect={choose} />
+    </div>
     {preview && !validation && <img className="upload-preview" src={preview} alt={`Preview de ${selected?.name ?? "archivo"}`} />}
     {(validation || error) && <p className="studio-error" role="alert">{validation || error}</p>}
     {selected && <Button disabled={busy || Boolean(validation)} onClick={() => onUpload(selected)}><LoaderCircle className={`mr-2 size-4 ${busy ? "animate-spin" : "hidden"}`} /><ImagePlus className={`mr-2 size-4 ${busy ? "hidden" : ""}`} />{busy ? "Subiendo..." : "Subir imagen"}</Button>}

@@ -71,6 +71,8 @@ Backend:
 
 `SUPABASE_SERVICE_ROLE_KEY` is a backend-only secret. Never expose it through `VITE_*`, logs, responses, or frontend code. JWT validation uses Supabase JWKS when available, or `SUPABASE_JWT_SECRET` for legacy HS256 projects.
 
+`CORS_ORIGIN` accepts comma-separated frontend origins. For the deployed API on Render, include the Vercel URL, for example `https://web-ggs-e214.vercel.app`; preview wildcards such as `https://*.vercel.app` are also supported.
+
 `SUPERADMIN_EMAIL` is backend-only bootstrap configuration for the first superadmin role assignment. It does not belong in frontend variables.
 
 ## Development

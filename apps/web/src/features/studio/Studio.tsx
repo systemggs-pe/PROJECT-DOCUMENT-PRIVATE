@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Archive, ChevronLeft, ChevronRight, Copy, FilePlus2, ImagePlus, LoaderCircle, Pencil, Plus, RotateCcw, Sparkles } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ImageCaptureActions } from "@/components/ImageCaptureActions";
 import { Button } from "@/components/ui/button";
 import { apiFetch, apiJson } from "@/lib/api";
 import Editor from "./Editor";
@@ -141,5 +142,5 @@ function GenerationPanel({ template, onGenerated }: { template: Template; onGene
     } catch (error) { setMessage(error instanceof Error ? error.message : "No se pudo generar el documento."); }
     finally { setBusy(false); }
   }
-  return <section className="generation-panel"><div><p className="eyebrow">Probar plantilla</p><h3>Generar documento</h3><p className="text-sm text-[var(--muted)]">Version {activeVersion.versionNumber}, {slots.length} campo{slots.length === 1 ? "" : "s"} de imagen.</p></div><div className="slot-grid">{slots.map((slot) => <label className="upload-slot" key={slot.id}><span><ImagePlus className="size-4" />{slot.name}{slot.required ? " *" : ""}</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => void selectFile(slot.key ?? slot.id, event.target.files?.[0])} /><small>{slot.key && files[slot.key] ? files[slot.key]?.originalName : "PNG, JPG o WebP, maximo 10 MB"}</small></label>)}</div>{message && <p className={message.includes("listo") ? "studio-success" : "studio-error"} role="status">{message}</p>}<Button onClick={() => void generate()} disabled={busy}><LoaderCircle className={`mr-2 size-4 ${busy ? "animate-spin" : "hidden"}`} />Generar PDF</Button></section>;
+  return <section className="generation-panel"><div><p className="eyebrow">Probar plantilla</p><h3>Generar documento</h3><p className="text-sm text-[var(--muted)]">Version {activeVersion.versionNumber}, {slots.length} campo{slots.length === 1 ? "" : "s"} de imagen.</p></div><div className="slot-grid">{slots.map((slot) => <div className="upload-slot" key={slot.id}><span><ImagePlus className="size-4" />{slot.name}{slot.required ? " *" : ""}</span><ImageCaptureActions disabled={busy} onSelect={(file) => void selectFile(slot.key ?? slot.id, file)} /><small>{slot.key && files[slot.key] ? files[slot.key]?.originalName : "PNG, JPG o WebP, maximo 10 MB"}</small></div>)}</div>{message && <p className={message.includes("listo") ? "studio-success" : "studio-error"} role="status">{message}</p>}<Button onClick={() => void generate()} disabled={busy}><LoaderCircle className={`mr-2 size-4 ${busy ? "animate-spin" : "hidden"}`} />Generar PDF</Button></section>;
 }

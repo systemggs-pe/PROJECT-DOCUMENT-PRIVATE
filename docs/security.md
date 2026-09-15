@@ -46,7 +46,7 @@ Storage operations use the service role only after NestJS has verified the authe
 
 ## CORS
 
-CORS origins are read from `CORS_ORIGIN`. In development, additional `localhost` and `127.0.0.1` ports are accepted so Vite can safely fall back when its default port is busy; production continues to allow only configured origins. Credentials are enabled only for allowed origins.
+CORS origins are read from `CORS_ORIGIN` and merged with the project defaults for local Vite and the current Vercel frontend. In development, additional `localhost` and `127.0.0.1` ports are accepted so Vite can safely fall back when its default port is busy; production continues to allow only explicit origins. Wildcard subdomains are supported for preview deployments, for example `https://*.vercel.app`. Credentials are enabled only for allowed origins.
 
 ## Templates And Versions
 

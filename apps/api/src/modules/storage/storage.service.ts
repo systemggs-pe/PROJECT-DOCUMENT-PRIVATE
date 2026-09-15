@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
@@ -7,7 +7,7 @@ export class StorageService {
   readonly bucket: string;
   private readonly client: SupabaseClient;
 
-  constructor(configService: ConfigService) {
+  constructor(@Inject(ConfigService) configService: ConfigService) {
     const url = configService.get<string>("SUPABASE_URL")?.trim();
     const serviceRoleKey = configService.get<string>("SUPABASE_SERVICE_ROLE_KEY")?.trim();
 

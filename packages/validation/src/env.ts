@@ -8,7 +8,7 @@ export const apiEnvSchema = z.object({
   SUPABASE_JWKS_URL: z.url().optional(),
   SUPABASE_JWT_AUDIENCE: z.string().default("authenticated"),
   PORT: z.coerce.number().int().positive().default(3000),
-  CORS_ORIGIN: z.string().default("http://localhost:5173"),
+  CORS_ORIGIN: z.string().default("http://localhost:5173,http://127.0.0.1:5173,https://web-ggs-e214.vercel.app"),
 });
 
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
