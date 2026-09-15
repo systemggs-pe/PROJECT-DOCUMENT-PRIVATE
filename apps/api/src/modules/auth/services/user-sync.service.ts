@@ -17,8 +17,18 @@ export class UserSyncService {
   async sync(identity: SupabaseIdentity): Promise<CurrentUser> {
     const user = await this.prisma.client.$transaction(async (tx) => {
       const bootstrapSuperadmin = isBootstrapSuperadmin(identity.email, this.config.get<string>("SUPERADMIN_EMAIL"));
-      const defaultOrganizationSlug = this.config.get<string>("DEFAULT_ORGANIZATION_SLUG") ?? "demo-organization";
-      const defaultOrganization = bootstrapSuperadmin ? null : await tx.organization.findUnique({ where: { slug: defaultOrganizationSlug }, select: { id: true, name: true, slug: true, status: true } });
+      const defaultOrganizationSlug = getDefaultOrganizationSlug(this.config.get<string>("DEFAULT_ORGANIZATION_SLUG"));
+      const defaultOrganization = await tx.organization.upsert({
+        where: { slug: defaultOrganizationSlug },
+        update: { status: "ACTIVE" },
+        create: {
+          name: defaultOrganizationSlug === "demo-organization" ? "Organization Demo" : humanizeSlug(defaultOrganizationSlug),
+          slug: defaultOrganizationSlug,
+          legalName: defaultOrganizationSlug === "demo-organization" ? "GGS Demo" : null,
+          status: "ACTIVE",
+        },
+        select: { id: true, name: true, slug: true, status: true },
+      });
       let synced = await tx.user.upsert({
         where: {
           authProviderId: identity.authProviderId,
@@ -28,7 +38,6 @@ export class UserSyncService {
           name: identity.name,
           avatarUrl: identity.avatarUrl,
           lastLoginAt: new Date(),
-          ...(bootstrapSuperadmin ? { organizationId: null } : {}),
         },
         create: {
           authProviderId: identity.authProviderId,
@@ -41,7 +50,7 @@ export class UserSyncService {
         include: { userRoles: true, organization: true },
       });
 
-      if (!bootstrapSuperadmin && !synced.organizationId && defaultOrganization) {
+      if (!synced.organizationId) {
         synced = await tx.user.update({ where: { id: synced.id }, data: { organizationId: defaultOrganization.id }, include: { userRoles: true, organization: true } });
       }
 
@@ -83,4 +92,17 @@ export class UserSyncService {
 
 function isBootstrapSuperadmin(email: string, configuredEmail?: string) {
   return Boolean(configuredEmail && email.trim().toLowerCase() === configuredEmail.trim().toLowerCase());
+}
+
+function getDefaultOrganizationSlug(configuredSlug?: string) {
+  const slug = configuredSlug?.trim();
+  return slug && slug.length > 0 ? slug : "demo-organization";
+}
+
+function humanizeSlug(slug: string) {
+  return slug
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
