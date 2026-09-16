@@ -76,7 +76,7 @@ export class GenerationRunnerService {
     const input = parseGenerationInput(body);
     const organizationId = requireTenant(user);
     const requestHash = buildRequestHash(input);
-    const prepared = await this.prepare(user, input, requestHash);
+    const prepared = await this.prepare(user, input, requestHash, { allowExistingGeneration: true });
 
     if (prepared.existingGenerationId) {
       return this.generations.findOwnedOrThrow(prepared.existingGenerationId, user);
@@ -124,14 +124,37 @@ export class GenerationRunnerService {
     }
   }
 
-  private async prepare(user: CurrentUser, input: GenerationInput, requestHash: string): Promise<PreparedGeneration & { existingGenerationId?: string }> {
+  async preview(user: CurrentUser, body: unknown) {
+    const input = parseGenerationInput(body);
+    const prepared = await this.prepare(user, input, buildRequestHash(input), { allowExistingGeneration: false });
+    const assets = await this.readAssets(prepared.files);
+    try {
+      return await this.pdf.renderTemplateVersion(
+        {
+          ...prepared.version,
+          elements: prepared.elements,
+        } as unknown as PdfTemplateVersionRecord,
+        assets,
+      );
+    } catch (error) {
+      if (error instanceof PdfEngineError) {
+        throw new BadRequestException("La plantilla no se puede renderizar.");
+      }
+      this.logger.error("PDF preview render failed");
+      throw new ServiceUnavailableException("No se pudo previsualizar el documento. Intenta nuevamente.");
+    }
+  }
+
+  private async prepare(user: CurrentUser, input: GenerationInput, requestHash: string, options: { allowExistingGeneration: boolean }): Promise<PreparedGeneration & { existingGenerationId?: string }> {
     const organizationId = requireTenant(user);
     return this.prisma.client.$transaction(async (tx) => {
       await lockUser(tx, user.id);
-      const existing = await tx.generation.findUnique({ where: { createdById_requestKey: { createdById: user.id, requestKey: input.requestKey } } });
-      if (existing) {
-        assertSameRequest(existing.requestHash, requestHash);
-        return { existingGenerationId: existing.id } as PreparedGeneration & { existingGenerationId: string };
+      if (options.allowExistingGeneration) {
+        const existing = await tx.generation.findUnique({ where: { createdById_requestKey: { createdById: user.id, requestKey: input.requestKey } } });
+        if (existing) {
+          assertSameRequest(existing.requestHash, requestHash);
+          return { existingGenerationId: existing.id } as PreparedGeneration & { existingGenerationId: string };
+        }
       }
 
       const version = await findOwnedActiveVersion(tx, user, input);

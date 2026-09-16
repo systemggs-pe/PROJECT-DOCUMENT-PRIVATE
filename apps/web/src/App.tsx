@@ -4,6 +4,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { AuthPage } from "@/features/auth/AuthPage";
+import { ResetPasswordPage } from "@/features/auth/ResetPasswordPage";
 import { Dashboard } from "@/features/dashboard/Dashboard";
 import { IdentityGate } from "@/features/auth/IdentityGate";
 import { can, useCurrentIdentity } from "@/features/auth/authorization";
@@ -19,6 +20,7 @@ const UsersPage = lazy(() => import("@/features/admin/UsersPage"));
 const RolesPage = lazy(() => import("@/features/admin/RolesPage"));
 const OrganizationsPage = lazy(() => import("@/features/admin/OrganizationsPage"));
 const OrganizationPage = lazy(() => import("@/features/admin/OrganizationPage"));
+const SettingsPage = lazy(() => import("@/features/settings/SettingsPage"));
 
 const sections = {
   dashboard: {
@@ -116,6 +118,10 @@ export function App() {
     );
   }
 
+  if (pathname.startsWith("/reset-password")) {
+    return <ResetPasswordPage />;
+  }
+
   if (!session) {
     return <AuthPage />;
   }
@@ -140,7 +146,7 @@ export function App() {
       <Suspense fallback={<p role="status">Cargando...</p>}>
       {requiredPermission && !can(identity.data, requiredPermission) ? <AccessDenied /> : currentSection === "dashboard" ? (
         <Dashboard />
-      ) : currentSection === "templates" ? <Studio /> : currentSection === "generate" ? <GeneratePage /> : currentSection === "files" ? <FileLibrary /> : currentSection === "generations" ? (pathname.startsWith("/generations/") ? <GenerationDetail /> : <History />) : currentSection === "organizations" ? <OrganizationsPage /> : currentSection === "organization" ? <OrganizationPage /> : currentSection === "users" ? <UsersPage /> : currentSection === "roles" ? <RolesPage /> : currentSection === "audit" ? <section className="empty-state"><h2>Auditoría</h2><p>Los eventos sensibles ya se registran en backend. La vista detallada queda preparada para la siguiente iteración administrativa.</p></section> : <section className="space-y-3"><h2 className="text-xl font-semibold">Mi cuenta</h2><p className="break-all">{session.user.email}</p><p>Acceso habilitado</p></section>}
+      ) : currentSection === "templates" ? <Studio /> : currentSection === "generate" ? <GeneratePage /> : currentSection === "files" ? <FileLibrary /> : currentSection === "generations" ? (pathname.startsWith("/generations/") ? <GenerationDetail /> : <History />) : currentSection === "organizations" ? <OrganizationsPage /> : currentSection === "organization" ? <OrganizationPage /> : currentSection === "users" ? <UsersPage /> : currentSection === "roles" ? <RolesPage /> : currentSection === "audit" ? <section className="empty-state"><h2>Auditoría</h2><p>Los eventos sensibles ya se registran en backend. La vista detallada queda preparada para la siguiente iteración administrativa.</p></section> : <SettingsPage />}
       </Suspense>
     </AppShell></IdentityGate>
   );

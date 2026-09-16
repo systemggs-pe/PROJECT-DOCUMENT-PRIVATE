@@ -17,6 +17,19 @@ export class GenerationsController {
     return this.runner.generate(user, body);
   }
 
+  @Post("preview")
+  @Permissions("generations.create")
+  async preview(@Body() body: unknown, @CurrentUser() user: CurrentUserType, @Res() response: Response) {
+    const content = await this.runner.preview(user, body);
+    response.set({
+      "Cache-Control": "private, no-store",
+      "Content-Disposition": "inline; filename=\"preview.pdf\"",
+      "Content-Type": "application/pdf",
+      "X-Content-Type-Options": "nosniff",
+    });
+    response.send(content);
+  }
+
   @Get()
   @Permissions("generations.read")
   list(@Query() query: unknown, @CurrentUser() user: CurrentUserType) {

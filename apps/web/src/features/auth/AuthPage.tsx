@@ -12,6 +12,10 @@ const loginSchema = z.object({
   password: z.string().min(1, "Ingresa tu password."),
 });
 
+const resetRequestSchema = z.object({
+  email: z.email("Ingresa un email válido."),
+});
+
 const registerSchema = z
   .object({
     name: z.string().trim().min(2, "Ingresa tu nombre."),
@@ -25,21 +29,30 @@ const registerSchema = z
   });
 
 type LoginForm = z.infer<typeof loginSchema>;
+type ResetRequestForm = z.infer<typeof resetRequestSchema>;
 type RegisterForm = z.infer<typeof registerSchema>;
 
 export function AuthPage() {
   const [mode, setMode] = useState<"login" | "register">(window.location.pathname === "/register" ? "register" : "login");
   const [formError, setFormError] = useState<string | null>(null);
+  const [formSuccess, setFormSuccess] = useState<string | null>(null);
   const isConfigured = useAuthStore((state) => state.isConfigured);
   const signIn = useAuthStore((state) => state.signIn);
   const signUp = useAuthStore((state) => state.signUp);
   const signInWithGoogle = useAuthStore((state) => state.signInWithGoogle);
+  const sendPasswordReset = useAuthStore((state) => state.sendPasswordReset);
 
   const loginForm = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
       email: "",
       password: "",
+    },
+  });
+  const resetRequestForm = useForm<ResetRequestForm>({
+    resolver: zodResolver(resetRequestSchema),
+    defaultValues: {
+      email: "",
     },
   });
   const registerForm = useForm<RegisterForm>({
@@ -56,6 +69,7 @@ export function AuthPage() {
 
   async function submitLogin(input: LoginForm) {
     setFormError(null);
+    setFormSuccess(null);
     try {
       await signIn(input.email, input.password);
       window.history.replaceState(null, "", "/");
@@ -66,6 +80,7 @@ export function AuthPage() {
 
   async function submitRegister(input: RegisterForm) {
     setFormError(null);
+    setFormSuccess(null);
     try {
       await signUp({ name: input.name, email: input.email, password: input.password });
       window.history.replaceState(null, "", "/");
@@ -76,6 +91,7 @@ export function AuthPage() {
 
   async function continueWithGoogle() {
     setFormError(null);
+    setFormSuccess(null);
     try {
       await signInWithGoogle();
     } catch (error) {
@@ -83,9 +99,22 @@ export function AuthPage() {
     }
   }
 
+  async function submitPasswordReset(input: ResetRequestForm) {
+    setFormError(null);
+    setFormSuccess(null);
+    try {
+      await sendPasswordReset(input.email);
+      setFormSuccess("Te enviamos un correo para restablecer tu contraseña.");
+      resetRequestForm.reset({ email: input.email });
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "No se pudo enviar el correo de recuperación.");
+    }
+  }
+
   function switchMode(nextMode: "login" | "register") {
     setMode(nextMode);
     setFormError(null);
+    setFormSuccess(null);
     window.history.replaceState(null, "", nextMode === "login" ? "/login" : "/register");
   }
 
@@ -131,6 +160,12 @@ export function AuthPage() {
             </div>
           ) : null}
 
+          {formSuccess ? (
+            <div className="mb-5 rounded-md border border-green-200 bg-green-50 p-4 text-sm text-[var(--success)]">
+              {formSuccess}
+            </div>
+          ) : null}
+
           {isRegister ? (
             <form className="grid gap-4" onSubmit={registerForm.handleSubmit(submitRegister)}>
               <Field label="Nombre" error={registerForm.formState.errors.name?.message}>
@@ -156,18 +191,34 @@ export function AuthPage() {
               </Button>
             </form>
           ) : (
-            <form className="grid gap-4" onSubmit={loginForm.handleSubmit(submitLogin)}>
-              <Field label="Email" error={loginForm.formState.errors.email?.message}>
-                <input {...loginForm.register("email")} autoComplete="email" className={inputClassName} />
-              </Field>
-              <Field label="Password" error={loginForm.formState.errors.password?.message}>
-                <input {...loginForm.register("password")} type="password" autoComplete="current-password" className={inputClassName} />
-              </Field>
-              <Button type="submit" className="h-11 gap-2" disabled={!isConfigured || loginForm.formState.isSubmitting}>
-                <LogIn className="size-4" aria-hidden={true} />
-                Iniciar sesión
-              </Button>
-            </form>
+            <div className="grid gap-4">
+              <form className="grid gap-4" onSubmit={loginForm.handleSubmit(submitLogin)}>
+                <Field label="Email" error={loginForm.formState.errors.email?.message}>
+                  <input {...loginForm.register("email")} autoComplete="email" className={inputClassName} />
+                </Field>
+                <Field label="Password" error={loginForm.formState.errors.password?.message}>
+                  <input {...loginForm.register("password")} type="password" autoComplete="current-password" className={inputClassName} />
+                </Field>
+                <Button type="submit" className="h-11 gap-2" disabled={!isConfigured || loginForm.formState.isSubmitting}>
+                  <LogIn className="size-4" aria-hidden={true} />
+                  Iniciar sesión
+                </Button>
+              </form>
+
+              <form className="grid gap-3 border-t border-[var(--line)] pt-4" onSubmit={resetRequestForm.handleSubmit(submitPasswordReset)}>
+                <Field label="Email para recuperación" error={resetRequestForm.formState.errors.email?.message}>
+                  <input {...resetRequestForm.register("email")} autoComplete="email" className={inputClassName} />
+                </Field>
+                <Button
+                  type="submit"
+                  variant="ghost"
+                  className="h-10 w-full border border-[var(--line)]"
+                  disabled={!isConfigured || resetRequestForm.formState.isSubmitting}
+                >
+                  Olvidé mi contraseña
+                </Button>
+              </form>
+            </div>
           )}
 
           <Button type="button" variant="ghost" className="mt-3 h-11 w-full gap-2 border border-[var(--line)]" onClick={continueWithGoogle} disabled={!isConfigured}>

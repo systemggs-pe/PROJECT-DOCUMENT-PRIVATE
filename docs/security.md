@@ -6,6 +6,15 @@ GGS Document Studio uses Supabase Auth for login, registration, logout, OAuth re
 
 The frontend keeps a single Supabase client in `apps/web/src/lib/supabase.ts`. Session changes are handled through Supabase's auth listener, and the app does not manually persist tokens beyond the official Supabase session mechanism.
 
+Password recovery and password changes are handled exclusively through Supabase Auth. The frontend sends reset emails with `resetPasswordForEmail` and updates the authenticated user's password with `updateUser({ password })`; passwords are never sent to NestJS or stored in Prisma.
+
+Supabase Auth must allow these redirect URLs for password recovery:
+
+```text
+http://localhost:5173/reset-password
+https://tu-dominio/reset-password
+```
+
 ## JWT Validation
 
 The NestJS API validates `Authorization: Bearer <access_token>` before protected requests reach controllers. The guard verifies the JWT signature, expiration, audience, issuer when configured, and subject structure. Supabase JWKS is used when asymmetric signing is available; `SUPABASE_JWT_SECRET` supports legacy HS256 projects.

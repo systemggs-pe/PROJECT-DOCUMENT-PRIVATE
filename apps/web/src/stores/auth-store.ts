@@ -13,6 +13,8 @@ interface AuthState {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (input: { name: string; email: string; password: string }) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  sendPasswordReset: (email: string) => Promise<void>;
+  updatePassword: (password: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -55,8 +57,10 @@ export const useAuthStore = create<AuthState>((set) => ({
       throw new Error("Supabase no está configurado.");
     }
 
+    set({ error: null });
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
+      set({ error: error.message });
       throw new Error(error.message);
     }
   },
@@ -65,6 +69,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       throw new Error("Supabase no está configurado.");
     }
 
+    set({ error: null });
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -75,6 +80,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       },
     });
     if (error) {
+      set({ error: error.message });
       throw new Error(error.message);
     }
   },
@@ -83,6 +89,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       throw new Error("Supabase no está configurado.");
     }
 
+    set({ error: null });
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
@@ -90,8 +97,41 @@ export const useAuthStore = create<AuthState>((set) => ({
       },
     });
     if (error) {
+      set({ error: error.message });
       throw new Error(error.message);
     }
+  },
+  sendPasswordReset: async (email: string) => {
+    if (!supabase) {
+      throw new Error("Supabase no está configurado.");
+    }
+
+    set({ error: null });
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    if (error) {
+      set({ error: error.message });
+      throw new Error(error.message);
+    }
+  },
+  updatePassword: async (password: string) => {
+    if (!supabase) {
+      throw new Error("Supabase no está configurado.");
+    }
+
+    set({ error: null });
+    const { data, error } = await supabase.auth.updateUser({
+      password,
+    });
+    if (error) {
+      set({ error: error.message });
+      throw new Error(error.message);
+    }
+    set({
+      user: data.user,
+      error: null,
+    });
   },
   signOut: async () => {
     if (!supabase) {
@@ -99,8 +139,10 @@ export const useAuthStore = create<AuthState>((set) => ({
       return;
     }
 
+    set({ error: null });
     const { error } = await supabase.auth.signOut();
     if (error) {
+      set({ error: error.message });
       throw new Error(error.message);
     }
     set({ session: null, user: null, error: null, isLoading: false });

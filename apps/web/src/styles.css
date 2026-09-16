@@ -943,6 +943,52 @@ summary:focus-visible {
   gap: 0.5rem;
 }
 
+.image-crop-dialog {
+  display: grid;
+  gap: 1rem;
+  width: min(760px, 100%);
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: 0 12px 30px rgb(23 33 28 / 16%);
+}
+
+.image-crop-stage {
+  display: grid;
+  place-items: center;
+  min-height: 260px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #202822;
+}
+
+.image-crop-stage canvas {
+  display: block;
+  width: 100%;
+  max-height: 58vh;
+  object-fit: contain;
+  cursor: grab;
+  touch-action: none;
+}
+
+.image-crop-stage canvas:active {
+  cursor: grabbing;
+}
+
+.image-crop-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.image-crop-controls .field span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 .history-skeleton {
   display: block;
   height: 0.8rem;
@@ -1193,6 +1239,21 @@ summary:focus-visible {
   margin-top: 0.35rem;
   color: var(--muted);
   font-size: 0.84rem;
+}
+
+.generation-preview {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.generation-preview iframe {
+  width: 100%;
+  min-height: 72vh;
+  border: 1px solid var(--line);
+  background: var(--surface-elevated);
 }
 
 .admin-controls {
@@ -1483,6 +1544,7 @@ summary:focus-visible {
 
   .generation-selects,
   .generation-workspace,
+  .image-crop-controls,
   .roles-layout,
   .admin-controls {
     grid-template-columns: 1fr;

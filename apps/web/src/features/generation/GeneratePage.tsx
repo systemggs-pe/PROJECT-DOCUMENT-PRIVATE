@@ -3,8 +3,9 @@ import { Download, FileOutput, ImagePlus, LoaderCircle, Trash2 } from "lucide-re
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ImageCaptureActions } from "@/components/ImageCaptureActions";
+import { ImageCropEditor } from "@/components/ImageCropEditor";
 import { Button } from "@/components/ui/button";
-import { apiJson, downloadGeneration } from "@/lib/api";
+import { apiFetch, apiJson, downloadGeneration } from "@/lib/api";
 import type { Generation, TemplatePage } from "@/features/studio/model";
 import { extractVariableKeys } from "./generation-model";
 
@@ -25,8 +26,12 @@ export default function GeneratePage() {
   const [variables, setVariables] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
   const [result, setResult] = useState<Generation | null>(null);
+  const [cropTarget, setCropTarget] = useState<{ key: string; file: File } | null>(null);
+  const [previewUrl, setPreviewUrl] = useState("");
   const requestKey = useRef(crypto.randomUUID());
   const previewUrls = useRef(new Set<string>());
+  const pdfPreviewUrl = useRef("");
+
   const templates = useQuery({
     queryKey: ["generation", "templates"],
     queryFn: () => apiJson<TemplatePage>("/templates?page=1&pageSize=100&status=ACTIVE&sortBy=updatedAt&sortOrder=desc"),
@@ -41,6 +46,7 @@ export default function GeneratePage() {
 
   useEffect(() => () => {
     for (const url of previewUrls.current) URL.revokeObjectURL(url);
+    if (pdfPreviewUrl.current) URL.revokeObjectURL(pdfPreviewUrl.current);
   }, []);
 
   const uploadMutation = useMutation({
@@ -60,23 +66,44 @@ export default function GeneratePage() {
         return { ...current, [key]: selected };
       });
       setMessage("");
+      closePreview();
     },
     onError: (error) => setMessage(error instanceof Error ? error.message : "No se pudo cargar la imagen."),
   });
 
-  const generateMutation = useMutation({
-    mutationFn: () => {
-      if (!selectedTemplate || !selectedVersion) throw new Error("Selecciona una plantilla con version activa.");
-      const missing = slots.filter((slot) => slot.required && !files[slot.key!]);
-      if (missing.length > 0) throw new Error(`Carga: ${missing.map((slot) => slot.name).join(", ")}.`);
-      return apiJson<Generation>("/generations", { method: "POST", body: JSON.stringify({ templateId: selectedTemplate.id, templateVersionId: selectedVersion.id, requestKey: requestKey.current, inputs: Object.fromEntries(Object.entries(files).map(([key, file]) => [key, { storedFileId: file.id }])), variables }) });
+  const previewMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiFetch("/generations/preview", {
+        method: "POST",
+        body: JSON.stringify(buildGenerationPayload()),
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({})) as { message?: string | string[]; error?: { message?: string } };
+        const responseMessage = data.error?.message ?? data.message;
+        throw new Error(Array.isArray(responseMessage) ? responseMessage.join(" ") : responseMessage ?? "No se pudo previsualizar el PDF.");
+      }
+      return response.blob();
     },
+    onSuccess: (blob) => {
+      closePreview();
+      const nextUrl = URL.createObjectURL(blob);
+      pdfPreviewUrl.current = nextUrl;
+      setPreviewUrl(nextUrl);
+      setMessage("");
+    },
+    onError: (error) => setMessage(error instanceof Error ? error.message : "No se pudo previsualizar el PDF."),
+  });
+
+  const generateMutation = useMutation({
+    mutationFn: () => apiJson<Generation>("/generations", { method: "POST", body: JSON.stringify(buildGenerationPayload()) }),
     onSuccess: (generation) => {
       if (generation.status !== "COMPLETED") throw new Error(generation.errorMessage ?? "La generacion no termino correctamente.");
       setResult(generation);
       setMessage("");
       requestKey.current = crypto.randomUUID();
       void cache.invalidateQueries({ queryKey: ["studio", "generations"] });
+      void downloadGeneration(generation.id, `${generation.number}.pdf`).catch(() => setMessage("El documento esta listo, pero no se pudo iniciar la descarga automatica."));
     },
     onError: (error) => setMessage(error instanceof Error ? error.message : "No se pudo generar el PDF."),
   });
@@ -86,6 +113,7 @@ export default function GeneratePage() {
     setVersionId("");
     setFiles({});
     setResult(null);
+    closePreview();
   }
 
   function removeFile(key: string) {
@@ -96,27 +124,132 @@ export default function GeneratePage() {
       delete next[key];
       return next;
     });
+    closePreview();
+  }
+
+  function buildGenerationPayload() {
+    if (!selectedTemplate || !selectedVersion) throw new Error("Selecciona una plantilla con version activa.");
+    const missing = slots.filter((slot) => slot.required && !files[slot.key!]);
+    if (missing.length > 0) throw new Error(`Carga: ${missing.map((slot) => slot.name).join(", ")}.`);
+    return {
+      templateId: selectedTemplate.id,
+      templateVersionId: selectedVersion.id,
+      requestKey: requestKey.current,
+      inputs: Object.fromEntries(Object.entries(files).map(([key, file]) => [key, { storedFileId: file.id }])),
+      variables,
+    };
+  }
+
+  function closePreview() {
+    if (pdfPreviewUrl.current) {
+      URL.revokeObjectURL(pdfPreviewUrl.current);
+      pdfPreviewUrl.current = "";
+    }
+    setPreviewUrl("");
   }
 
   if (templates.isPending) return <div className="loading-row" role="status"><LoaderCircle className="size-4 animate-spin" />Cargando plantillas activas...</div>;
   if (templates.isError) return <section className="empty-state" role="alert"><h2>No se pudieron cargar las plantillas</h2><p>{templates.error.message}</p><Button onClick={() => void templates.refetch()}>Reintentar</Button></section>;
 
-  return <div className="generate-page">
-    <div className="page-heading"><div><p className="eyebrow">Produccion documental</p><h2>Generar PDF</h2><p className="page-subtitle">Completa los campos de la version activa y conserva el documento numerado en tu historial.</p></div><FileOutput className="generate-heading-icon" aria-hidden={true} /></div>
-    {!selectedTemplate ? <section className="empty-state"><FileOutput className="size-7" /><h3>No hay plantillas activas</h3><p>Activa una plantilla desde Plantillas para empezar a generar.</p></section> : <>
-      <section className="generation-config" aria-label="Configuracion de generacion">
-        <div className="generation-selects"><label className="field"><span>Plantilla</span><select value={selectedTemplate.id} onChange={(event) => selectTemplate(event.target.value)}>{items.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label className="field"><span>Version</span><select value={selectedVersion?.id ?? ""} onChange={(event) => { setVersionId(event.target.value); setFiles({}); setResult(null); }}>{selectedTemplate.versions.map((version) => <option key={version.id} value={version.id}>Version {version.versionNumber}{version.isActive ? " , activa" : ""}</option>)}</select></label></div>
-        <div className="generation-config-meta"><span><strong>Formato</strong>{selectedVersion?.paperSize ?? "Sin version"} {selectedVersion?.orientation === "LANDSCAPE" ? "horizontal" : "vertical"}</span><span><strong>Campos de imagen</strong>{slots.length}</span></div>
-      </section>
-      <section className="generation-workspace">
-        <div className="generation-inputs"><div className="section-heading"><div><p className="eyebrow">Campos de imagen</p><h3>Archivos del documento</h3></div><span className="section-count">{Object.keys(files).length}/{slots.length}</span></div>{slots.length ? <div className="generation-slots">{slots.map((slot) => { const selected = files[slot.key!]; return <div className={`generation-slot ${selected ? "is-filled" : ""}`} key={slot.id}><div className="slot-heading"><span><ImagePlus className="size-4" />{slot.name}{slot.required ? " *" : ""}</span>{selected && <Button variant="ghost" size="icon" title={`Quitar ${slot.name}`} aria-label={`Quitar ${slot.name}`} onClick={() => removeFile(slot.key!)}><Trash2 className="size-4" /></Button>}</div>{selected ? <div className="slot-selected"><img src={selected.previewUrl} alt={`Vista previa de ${slot.name}`} /><span title={selected.originalName}>{selected.originalName}</span></div> : <p className="slot-empty">Aun no has seleccionado una imagen.</p>}<ImageCaptureActions fileLabel={selected ? "Reemplazar imagen" : "Seleccionar imagen"} onSelect={(file) => uploadMutation.mutate({ key: slot.key!, file })} /></div>; })}</div> : <p className="panel-hint">Esta version no tiene campos de imagen. Puedes generar el PDF usando solo sus textos y formas.</p>}</div>
-        <div className="generation-inputs"><div className="section-heading"><div><p className="eyebrow">Datos variables</p><h3>Texto del documento</h3></div><span className="section-count">{variableKeys.length}</span></div>{variableKeys.length ? <div className="variable-list">{variableKeys.map((key) => <label className="field" key={key}><span>{humanizeKey(key)}</span><input value={variables[key] ?? ""} maxLength={500} placeholder={`Valor para ${key}`} onChange={(event) => setVariables((current) => ({ ...current, [key]: event.target.value }))} /></label>)}</div> : <p className="panel-hint">No hay variables de texto en esta version.</p>}</div>
-      </section>
-      {message && <p className="studio-error" role="alert">{message}</p>}
-      <div className="generation-actions"><Button onClick={() => { setMessage(""); generateMutation.mutate(); }} disabled={generateMutation.isPending || uploadMutation.isPending || !selectedVersion}><LoaderCircle className={`mr-2 size-4 ${generateMutation.isPending ? "animate-spin" : "hidden"}`} />Generar documento</Button><span className="generation-action-hint">El PDF se guarda en archivos privados y recibe un correlativo único.</span></div>
-      {result && <section className="generation-result" role="status"><div><p className="eyebrow">Documento listo</p><h3>{result.number}</h3><p>La generación se completó con la versión {selectedVersion?.versionNumber} de {selectedTemplate.name}.</p></div><Button onClick={() => void downloadGeneration(result.id, `${result.number}.pdf`)}><Download className="mr-2 size-4" />Descargar PDF</Button></section>}
-    </>}
-  </div>;
+  return (
+    <div className="generate-page">
+      <div className="page-heading">
+        <div>
+          <p className="eyebrow">Produccion documental</p>
+          <h2>Generar PDF</h2>
+          <p className="page-subtitle">Completa los campos de la version activa y conserva el documento numerado en tu historial.</p>
+        </div>
+        <FileOutput className="generate-heading-icon" aria-hidden={true} />
+      </div>
+
+      {!selectedTemplate ? (
+        <section className="empty-state"><FileOutput className="size-7" /><h3>No hay plantillas activas</h3><p>Activa una plantilla desde Plantillas para empezar a generar.</p></section>
+      ) : (
+        <>
+          <section className="generation-config" aria-label="Configuracion de generacion">
+            <div className="generation-selects">
+              <label className="field">
+                <span>Plantilla</span>
+                <select value={selectedTemplate.id} onChange={(event) => selectTemplate(event.target.value)}>
+                  {items.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                </select>
+              </label>
+              <label className="field">
+                <span>Version</span>
+                <select value={selectedVersion?.id ?? ""} onChange={(event) => { setVersionId(event.target.value); setFiles({}); setResult(null); closePreview(); }}>
+                  {selectedTemplate.versions.map((version) => <option key={version.id} value={version.id}>Version {version.versionNumber}{version.isActive ? " , activa" : ""}</option>)}
+                </select>
+              </label>
+            </div>
+            <div className="generation-config-meta">
+              <span><strong>Formato</strong>{selectedVersion?.paperSize ?? "Sin version"} {selectedVersion?.orientation === "LANDSCAPE" ? "horizontal" : "vertical"}</span>
+              <span><strong>Campos de imagen</strong>{slots.length}</span>
+            </div>
+          </section>
+
+          <section className="generation-workspace">
+            <div className="generation-inputs">
+              <div className="section-heading">
+                <div><p className="eyebrow">Campos de imagen</p><h3>Archivos del documento</h3></div>
+                <span className="section-count">{Object.keys(files).length}/{slots.length}</span>
+              </div>
+              {slots.length ? (
+                <div className="generation-slots">
+                  {slots.map((slot) => {
+                    const selected = files[slot.key!];
+                    return (
+                      <div className={`generation-slot ${selected ? "is-filled" : ""}`} key={slot.id}>
+                        <div className="slot-heading">
+                          <span><ImagePlus className="size-4" />{slot.name}{slot.required ? " *" : ""}</span>
+                          {selected && <Button variant="ghost" size="icon" title={`Quitar ${slot.name}`} aria-label={`Quitar ${slot.name}`} onClick={() => removeFile(slot.key!)}><Trash2 className="size-4" /></Button>}
+                        </div>
+                        {selected ? <div className="slot-selected"><img src={selected.previewUrl} alt={`Vista previa de ${slot.name}`} /><span title={selected.originalName}>{selected.originalName}</span></div> : <p className="slot-empty">Aun no has seleccionado una imagen.</p>}
+                        <ImageCaptureActions fileLabel={selected ? "Reemplazar imagen" : "Seleccionar imagen"} disabled={uploadMutation.isPending} onSelect={(file) => setCropTarget({ key: slot.key!, file })} />
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : <p className="panel-hint">Esta version no tiene campos de imagen. Puedes generar el PDF usando solo sus textos y formas.</p>}
+            </div>
+
+            <div className="generation-inputs">
+              <div className="section-heading">
+                <div><p className="eyebrow">Datos variables</p><h3>Texto del documento</h3></div>
+                <span className="section-count">{variableKeys.length}</span>
+              </div>
+              {variableKeys.length ? (
+                <div className="variable-list">
+                  {variableKeys.map((key) => (
+                    <label className="field" key={key}>
+                      <span>{humanizeKey(key)}</span>
+                      <input value={variables[key] ?? ""} maxLength={500} placeholder={`Valor para ${key}`} onChange={(event) => { closePreview(); setVariables((current) => ({ ...current, [key]: event.target.value })); }} />
+                    </label>
+                  ))}
+                </div>
+              ) : <p className="panel-hint">No hay variables de texto en esta version.</p>}
+            </div>
+          </section>
+
+          {message && <p className="studio-error" role="alert">{message}</p>}
+          <div className="generation-actions">
+            <Button variant="ghost" onClick={() => { setMessage(""); previewMutation.mutate(); }} disabled={previewMutation.isPending || generateMutation.isPending || uploadMutation.isPending || !selectedVersion}>
+              <LoaderCircle className={`mr-2 size-4 ${previewMutation.isPending ? "animate-spin" : "hidden"}`} />
+              Previsualizar
+            </Button>
+            <Button onClick={() => { setMessage(""); generateMutation.mutate(); }} disabled={generateMutation.isPending || previewMutation.isPending || uploadMutation.isPending || !selectedVersion}>
+              <LoaderCircle className={`mr-2 size-4 ${generateMutation.isPending ? "animate-spin" : "hidden"}`} />
+              Generar documento
+            </Button>
+            <span className="generation-action-hint">El PDF se guarda en archivos privados y recibe un correlativo unico.</span>
+          </div>
+
+          {previewUrl && <section className="generation-preview"><div className="section-heading"><div><p className="eyebrow">Preview</p><h3>Previsualizacion del PDF</h3></div><Button type="button" variant="ghost" onClick={closePreview}>Cerrar preview</Button></div><iframe src={previewUrl} title="Previsualizacion del PDF generado" /></section>}
+          {result && <section className="generation-result" role="status"><div><p className="eyebrow">Documento listo</p><h3>{result.number}</h3><p>La generacion se completo con la version {selectedVersion?.versionNumber} de {selectedTemplate.name}.</p></div><Button onClick={() => void downloadGeneration(result.id, `${result.number}.pdf`)}><Download className="mr-2 size-4" />Descargar PDF</Button></section>}
+          {cropTarget && <ImageCropEditor file={cropTarget.file} onCancel={() => setCropTarget(null)} onApply={(file) => { const key = cropTarget.key; setCropTarget(null); closePreview(); uploadMutation.mutate({ key, file }); }} />}
+        </>
+      )}
+    </div>
+  );
 }
 
 function validateImage(file: File) {
