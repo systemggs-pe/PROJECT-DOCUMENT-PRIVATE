@@ -65,6 +65,13 @@ export class GenerationsService {
             file: { select: { id: true, originalName: true, mimeType: true, sizeBytes: true, type: true } },
           },
         },
+        attachments: {
+          orderBy: { order: "asc" },
+          select: {
+            id: true, order: true, fileId: true,
+            file: { select: { id: true, originalName: true, mimeType: true, sizeBytes: true, type: true } },
+          },
+        },
       },
     });
 
@@ -86,6 +93,7 @@ export class GenerationsService {
     await this.prisma.client.$transaction(async (tx) => {
       const otherReferences = generation.outputFileId ? await tx.generationInput.count({ where: { fileId: generation.outputFileId, generationId: { not: id } } }) : 0;
       shouldRemoveOutput = Boolean(generation.outputFileId && otherReferences === 0 && generation.outputFile?.type === "PDF" && generation.outputFile.bucket === storage.bucket && outputKey && isSafeOutputKey(outputKey, user));
+      await tx.generationAttachment.deleteMany({ where: { generationId: id } });
       await tx.generationInput.deleteMany({ where: { generationId: id } });
       await tx.generation.delete({ where: { id } });
       if (generation.outputFileId && otherReferences === 0) await tx.storedFile.delete({ where: { id: generation.outputFileId } });
@@ -147,6 +155,11 @@ function serializeGenerationListItem<T extends { outputFile: { sizeBytes: bigint
   return { ...item, outputFile: item.outputFile ? { ...item.outputFile, sizeBytes: item.outputFile.sizeBytes.toString() } : null };
 }
 
-function serializeGenerationDetail<T extends { outputFile: { sizeBytes: bigint } | null; inputs: Array<{ file: { sizeBytes: bigint } | null }> }>(generation: T) {
-  return { ...generation, outputFile: generation.outputFile ? { ...generation.outputFile, sizeBytes: generation.outputFile.sizeBytes.toString() } : null, inputs: generation.inputs.map((input) => ({ ...input, file: input.file ? { ...input.file, sizeBytes: input.file.sizeBytes.toString() } : null })) };
+function serializeGenerationDetail<T extends { outputFile: { sizeBytes: bigint } | null; inputs: Array<{ file: { sizeBytes: bigint } | null }>; attachments?: Array<{ file: { sizeBytes: bigint } }> }>(generation: T) {
+  return {
+    ...generation,
+    outputFile: generation.outputFile ? { ...generation.outputFile, sizeBytes: generation.outputFile.sizeBytes.toString() } : null,
+    inputs: generation.inputs.map((input) => ({ ...input, file: input.file ? { ...input.file, sizeBytes: input.file.sizeBytes.toString() } : null })),
+    attachments: generation.attachments?.map((attachment) => ({ ...attachment, file: { ...attachment.file, sizeBytes: attachment.file.sizeBytes.toString() } })),
+  };
 }

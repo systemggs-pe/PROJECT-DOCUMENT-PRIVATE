@@ -22,7 +22,7 @@ export class FilesController {
   @Permissions("files.read")
   async download(@Param("id", new ParseUUIDPipe()) id: string, @CurrentUser() user: CurrentUserType, @Res() res: Response) {
     const { file, content } = await this.filesService.download(id, user);
-    res.set({ "Content-Type": file.mimeType, "Content-Disposition": `attachment; filename="${file.type === "PDF" ? "documento.pdf" : "imagen.jpg"}"`, "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" }).send(content);
+    res.set({ "Content-Type": file.mimeType, "Content-Disposition": `attachment; filename="${downloadName(file.originalName)}"`, "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" }).send(content);
   }
 
   @Get(":id/signed-url")
@@ -48,4 +48,8 @@ export class FilesController {
   findOne(@Param("id", new ParseUUIDPipe()) id: string, @CurrentUser() user: CurrentUserType) {
     return this.filesService.findOwnedOrThrow(id, user);
   }
+}
+
+function downloadName(value: string) {
+  return value.replace(/["\r\n]/g, "_").slice(0, 160) || "archivo";
 }

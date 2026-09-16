@@ -9,6 +9,12 @@ describe("FileLibrary validation", () => {
     expect(validateFile(file)).toBe("");
   });
 
+  it("accepts PDF, DOC, and DOCX files under 10 MB", () => {
+    expect(validateFile(new File(["%PDF-1.7"], "contrato.pdf", { type: "application/pdf" }))).toBe("");
+    expect(validateFile(new File(["doc"], "carta.doc", { type: "application/msword" }))).toBe("");
+    expect(validateFile(new File(["docx"], "informe.docx", { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }))).toBe("");
+  });
+
   it("rejects unsupported, oversized, or misleading files", () => {
     expect(validateFile(new File(["svg"], "icon.svg", { type: "image/svg+xml" }))).toContain("formato");
     expect(validateFile(new File([new Uint8Array(10 * 1024 * 1024 + 1)], "foto.png", { type: "image/png" }))).toContain("tamano");

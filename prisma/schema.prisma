@@ -41,6 +41,7 @@ enum TemplateElementType {
 enum StoredFileType {
   IMAGE
   PDF
+  DOCUMENT
 }
 
 enum GenerationStatus {
@@ -294,6 +295,7 @@ model StoredFile {
   createdBy           User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
   organization        Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   generationInputs    GenerationInput[]
+  generationAttachments GenerationAttachment[]
   outputForGeneration Generation?       @relation("GenerationOutputFile")
 
   @@index([createdById])
@@ -328,6 +330,7 @@ model Generation {
   organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   outputFile      StoredFile?       @relation("GenerationOutputFile", fields: [outputFileId], references: [id], onDelete: Restrict)
   inputs          GenerationInput[]
+  attachments     GenerationAttachment[]
 
   @@index([templateId])
   @@index([templateVersionId])
@@ -358,6 +361,23 @@ model GenerationInput {
   @@index([templateElementId])
   @@index([fileId])
   @@map("generation_inputs")
+}
+
+model GenerationAttachment {
+  id           String   @id @default(uuid()) @db.Uuid
+  generationId String   @map("generation_id") @db.Uuid
+  fileId       String   @map("file_id") @db.Uuid
+  order        Int
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  generation Generation @relation(fields: [generationId], references: [id], onDelete: Restrict)
+  file       StoredFile @relation(fields: [fileId], references: [id], onDelete: Restrict)
+
+  @@unique([generationId, fileId])
+  @@unique([generationId, order])
+  @@index([generationId])
+  @@index([fileId])
+  @@map("generation_attachments")
 }
 
 model AuditLog {

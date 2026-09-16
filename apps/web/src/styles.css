@@ -357,6 +357,10 @@ summary:focus-visible {
   object-fit: contain;
 }
 
+.file-preview-frame {
+  min-height: 18rem;
+}
+
 .file-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
@@ -1083,9 +1087,57 @@ summary:focus-visible {
 }
 
 .generation-slots,
-.variable-list {
+.variable-list,
+.attachment-list,
+.attachment-picker {
   display: grid;
   gap: 0.7rem;
+}
+
+.attachment-row,
+.attachment-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  min-width: 0;
+  padding: 0.7rem;
+  border: 1px solid var(--line);
+  background: var(--surface-elevated);
+}
+
+.attachment-row > span,
+.attachment-option > span {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 0.45rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-option {
+  width: 100%;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.attachment-option:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.attachment-option:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.attachment-option small {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.75rem;
 }
 
 .generation-slot {

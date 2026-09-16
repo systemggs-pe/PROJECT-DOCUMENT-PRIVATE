@@ -39,6 +39,7 @@ describe("GenerationsService", () => {
 
   it("deletes only a finished owned generation and preserves the audit event", async () => {
     const tx = {
+      generationAttachment: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
       generationInput: { count: vi.fn().mockResolvedValue(0), deleteMany: vi.fn().mockResolvedValue({ count: 1 }) },
       generation: { delete: vi.fn().mockResolvedValue({}) },
       storedFile: { delete: vi.fn().mockResolvedValue({}) },
@@ -54,6 +55,7 @@ describe("GenerationsService", () => {
     const service = new GenerationsService(prisma as unknown as PrismaService, storage as never);
 
     await expect(service.removeOwned("generation-a", actor("user-a"))).resolves.toEqual({ deleted: true, id: "generation-a" });
+    expect(tx.generationAttachment.deleteMany).toHaveBeenCalledWith({ where: { generationId: "generation-a" } });
     expect(tx.generationInput.deleteMany).toHaveBeenCalledWith({ where: { generationId: "generation-a" } });
     expect(tx.generation.delete).toHaveBeenCalledWith({ where: { id: "generation-a" } });
     expect(tx.storedFile.delete).toHaveBeenCalledWith({ where: { id: "file-a" } });

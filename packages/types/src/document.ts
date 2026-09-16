@@ -19,7 +19,7 @@ export type ElementType =
   | "PAGE_NUMBER"
   | "LOGO";
 export type ImageFitMode = "contain" | "cover" | "fill" | "stretch";
-export type StoredFileType = "IMAGE" | "PDF";
+export type StoredFileType = "IMAGE" | "PDF" | "DOCUMENT";
 export type GenerationStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
 export type AuditAction = "CREATE" | "UPDATE" | "DELETE" | "DOWNLOAD" | "GENERATE" | "LOGIN";
 export type AuditEntityType =

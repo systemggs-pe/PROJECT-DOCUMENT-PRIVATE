@@ -8,6 +8,9 @@ import { FilesService } from "./files.service";
 import type { StorageService } from "../storage/storage.service";
 
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
+const pdf = Buffer.from("%PDF-1.7\n%test\n");
+const doc = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0x00, 0x00]);
+const docx = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00]);
 const organizationId = "22222222-2222-4222-8222-222222222222";
 
 describe("FilesService", () => {
@@ -42,6 +45,27 @@ describe("FilesService", () => {
     await expect(service.upload(actor(randomUUID()), { buffer: Buffer.alloc(10 * 1024 * 1024 + 1), originalname: "large.jpg", mimetype: "image/jpeg" })).rejects.toBeInstanceOf(BadRequestException);
     await expect(service.upload(actor(randomUUID()), { buffer: Buffer.from("not an image"), originalname: "renamed.jpg", mimetype: "image/jpeg" })).rejects.toBeInstanceOf(BadRequestException);
     expect(storage.put).not.toHaveBeenCalled();
+  });
+
+  it("uploads PDF, DOC, and DOCX files without normalizing them", async () => {
+    const created: unknown[] = [];
+    const tx = {
+      storedFile: { create: vi.fn(async ({ data }) => { created.push(data); return { ...data, createdAt: new Date("2026-09-14T00:00:00Z") }; }) },
+      auditLog: { create: vi.fn() },
+    };
+    const prisma = { client: { $transaction: vi.fn((callback) => callback(tx)) } } as unknown as PrismaService;
+    const storage = fakeStorage();
+    const service = new FilesService(prisma, storage);
+    const user = actor(randomUUID());
+
+    await expect(service.upload(user, { buffer: pdf, originalname: "contrato.pdf", mimetype: "application/pdf" })).resolves.toMatchObject({ type: "PDF", mimeType: "application/pdf", originalName: "contrato.pdf" });
+    await expect(service.upload(user, { buffer: doc, originalname: "carta.doc", mimetype: "application/msword" })).resolves.toMatchObject({ type: "DOCUMENT", mimeType: "application/msword", originalName: "carta.doc" });
+    await expect(service.upload(user, { buffer: docx, originalname: "informe.docx", mimetype: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" })).resolves.toMatchObject({ type: "DOCUMENT", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", originalName: "informe.docx" });
+
+    expect(storage.put).toHaveBeenCalledWith(expect.stringMatching(/original\.pdf$/), pdf, "application/pdf");
+    expect(storage.put).toHaveBeenCalledWith(expect.stringMatching(/original\.doc$/), doc, "application/msword");
+    expect(storage.put).toHaveBeenCalledWith(expect.stringMatching(/original\.docx$/), docx, "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    expect(created).toHaveLength(3);
   });
 
   it("does not create metadata when storage upload fails", async () => {
@@ -95,8 +119,10 @@ describe("FilesService", () => {
       client: {
         storedFile: { findFirst: vi.fn().mockResolvedValue(file) },
         generationInput: { count: vi.fn().mockResolvedValue(0) },
+        generationAttachment: { count: vi.fn().mockResolvedValue(0) },
+        generation: { count: vi.fn().mockResolvedValue(0) },
         auditLog: { create: vi.fn() },
-        $transaction: vi.fn((callback) => callback(tx)),
+        $transaction: vi.fn((value) => Array.isArray(value) ? Promise.all(value) : value(tx)),
       },
     } as unknown as PrismaService;
     const storage = fakeStorage();
@@ -114,6 +140,9 @@ describe("FilesService", () => {
       client: {
         storedFile: { findFirst: vi.fn().mockResolvedValue(file) },
         generationInput: { count: vi.fn().mockResolvedValue(1) },
+        generationAttachment: { count: vi.fn().mockResolvedValue(0) },
+        generation: { count: vi.fn().mockResolvedValue(0) },
+        $transaction: vi.fn((value) => Array.isArray(value) ? Promise.all(value) : value({})),
       },
     } as unknown as PrismaService, fakeStorage());
 

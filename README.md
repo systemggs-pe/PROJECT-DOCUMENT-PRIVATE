@@ -68,12 +68,16 @@ Backend:
 - `PORT`
 - `CORS_ORIGIN`
 - `SUPERADMIN_EMAIL`
+- `LIBREOFFICE_BIN`
+- `DOCUMENT_CONVERSION_TIMEOUT_MS`
 
 `SUPABASE_SERVICE_ROLE_KEY` is a backend-only secret. Never expose it through `VITE_*`, logs, responses, or frontend code. JWT validation uses Supabase JWKS when available, or `SUPABASE_JWT_SECRET` for legacy HS256 projects.
 
 `CORS_ORIGIN` accepts comma-separated frontend origins. For the deployed API on Render, include the Vercel URL, for example `https://web-ggs-e214.vercel.app`; preview wildcards such as `https://*.vercel.app` are also supported.
 
 `SUPERADMIN_EMAIL` is backend-only bootstrap configuration for the first superadmin role assignment. It does not belong in frontend variables.
+
+DOC/DOCX attachments are converted to PDF with LibreOffice headless in the backend. Install LibreOffice in the API runtime and set `LIBREOFFICE_BIN` to the executable (`soffice`, `libreoffice`, or an absolute path). If LibreOffice is not available, PDF generation with DOC/DOCX attachments fails with a clear configuration error; plain PDF attachments and generations without documents continue to work.
 
 ## Development
 

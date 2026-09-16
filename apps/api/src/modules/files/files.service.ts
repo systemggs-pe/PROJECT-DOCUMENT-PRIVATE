@@ -9,14 +9,16 @@ import { requireTenant, resourceScope } from "../auth/tenant-context";
 import type { CurrentUser } from "../auth/types/current-user";
 
 const maxImageBytes = 10 * 1024 * 1024;
+const maxDocumentBytes = 10 * 1024 * 1024;
 const signedUrlTtlSeconds = 300;
 const allowedInputMimeTypes = ["image/jpeg", "image/png", "image/webp"] as const;
-const allowedExtensions = new Set([".jpg", ".jpeg", ".png", ".webp"]);
+const allowedDocumentMimeTypes = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"] as const;
+const allowedExtensions = new Set([".jpg", ".jpeg", ".png", ".webp", ".pdf", ".doc", ".docx"]);
 const filesQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(10000).default(1),
   pageSize: z.coerce.number().int().min(1).max(50).default(12),
   search: z.string().trim().max(120).default(""),
-  type: z.enum(["IMAGE", "PDF"]).optional(),
+  type: z.enum(["IMAGE", "PDF", "DOCUMENT"]).optional(),
   sortBy: z.enum(["createdAt", "originalName", "sizeBytes"]).default("createdAt"),
   sortOrder: z.enum(["asc", "desc"]).default("desc"),
 }).strict();
@@ -30,25 +32,19 @@ export class FilesService {
 
   async upload(user: CurrentUser, file: { buffer: Buffer; originalname: string; mimetype: string } | undefined) {
     const organizationId = requireTenant(user);
-    validateUpload(file);
-    let normalized: { data: Buffer; info: OutputInfo };
-    try {
-      const image = sharp(file.buffer, { limitInputPixels: 20_000_000, failOn: "warning" });
-      const metadata = await image.metadata();
-      if (!["jpeg", "png", "webp"].includes(metadata.format ?? "") || (metadata.pages ?? 1) !== 1) throw new Error("Invalid image");
-      normalized = await image.rotate().flatten({ background: "#ffffff" }).jpeg({ quality: 94 }).toBuffer({ resolveWithObject: true });
-    } catch { throw new BadRequestException("La imagen esta danada, es animada o supera 20 megapixeles."); }
+    if (!file) throw new BadRequestException("Selecciona un archivo permitido de hasta 10 MB.");
+    const upload = await prepareUpload(file);
     const id = randomUUID();
-    const key = `organizations/${organizationId}/files/${id}/original.jpg`;
+    const key = `organizations/${organizationId}/files/${id}/original${upload.extension}`;
     const storage = this.requireStorage();
-    await storage.put(key, normalized.data, "image/jpeg");
+    await storage.put(key, upload.data, upload.mimeType);
     try {
       const result = await this.prisma.client.$transaction(async (tx) => {
         const saved = await tx.storedFile.create({ data: {
           id, originalName: sanitizeOriginalName(file.originalname), storageKey: key, bucket: storage.bucket,
-          type: "IMAGE", mimeType: "image/jpeg", sizeBytes: BigInt(normalized.data.length),
-          width: normalized.info.width, height: normalized.info.height, checksum: createHash("sha256").update(normalized.data).digest("hex"), createdById: user.id, organizationId,
-          metadata: { sourceMimeType: file.mimetype, normalized: true, storagePathPolicy: "organizations/{organizationId}/files/{fileId}/original.jpg" },
+          type: upload.type, mimeType: upload.mimeType, sizeBytes: BigInt(upload.data.length),
+          width: upload.width, height: upload.height, checksum: createHash("sha256").update(upload.data).digest("hex"), createdById: user.id, organizationId,
+          metadata: { sourceMimeType: file.mimetype, normalized: upload.type === "IMAGE", storagePathPolicy: "organizations/{organizationId}/files/{fileId}/original{extension}" },
         } });
         await tx.auditLog.create({ data: { userId: user.id, organizationId, action: "CREATE", entityType: "STORED_FILE", entityId: saved.id, metadata: { event: "FILE_UPLOADED", mimeType: saved.mimeType, sizeBytes: saved.sizeBytes.toString() } } });
         return saved;
@@ -76,9 +72,12 @@ export class FilesService {
 
   async removeUnused(id: string, user: CurrentUser) {
     const file = await this.findOwnedOrThrow(id, user);
-    if (file.type !== "IMAGE") throw new ConflictException("El PDF pertenece al historial.");
-    const references = await this.prisma.client.generationInput.count({ where: { fileId: id } });
-    if (references > 0) throw new ConflictException("Esta imagen ya forma parte de un documento.");
+    const [inputReferences, attachmentReferences, outputReferences] = await this.prisma.client.$transaction([
+      this.prisma.client.generationInput.count({ where: { fileId: id } }),
+      this.prisma.client.generationAttachment.count({ where: { fileId: id } }),
+      this.prisma.client.generation.count({ where: { outputFileId: id } }),
+    ]);
+    if (inputReferences + attachmentReferences + outputReferences > 0) throw new ConflictException("Este archivo ya forma parte de un documento o historial.");
     try {
       await this.prisma.client.$transaction(async (tx) => {
         await tx.storedFile.delete({ where: { id } });
@@ -87,7 +86,7 @@ export class FilesService {
     } catch {
       throw new ConflictException("Esta imagen ya forma parte de un documento.");
     }
-    await this.requireStorage().remove(file.storageKey).catch(() => this.logger.error(`Orphaned image requires cleanup: ${file.storageKey}`));
+    await this.requireStorage().remove(file.storageKey).catch(() => this.logger.error(`Orphaned file requires cleanup: ${file.storageKey}`));
     return { deleted: true };
   }
 
@@ -140,11 +139,54 @@ export function parseFilesQuery(value: unknown): FilesQuery {
   return parsed.data;
 }
 
-function validateUpload(file: { buffer: Buffer; originalname: string; mimetype: string } | undefined): asserts file is { buffer: Buffer; originalname: string; mimetype: typeof allowedInputMimeTypes[number] } {
-  if (!file) throw new BadRequestException("Selecciona una imagen PNG, JPG o WebP de hasta 10 MB.");
-  if (file.buffer.length > maxImageBytes) throw new BadRequestException("El archivo supera el tamano permitido de 10 MB.");
-  if (!allowedInputMimeTypes.includes(file.mimetype as typeof allowedInputMimeTypes[number])) throw new BadRequestException("Este formato de archivo no esta permitido.");
+type PreparedUpload = {
+  type: "IMAGE" | "PDF" | "DOCUMENT";
+  data: Buffer;
+  mimeType: string;
+  extension: ".jpg" | ".pdf" | ".doc" | ".docx";
+  width: number | null;
+  height: number | null;
+};
+
+async function prepareUpload(file: { buffer: Buffer; originalname: string; mimetype: string } | undefined): Promise<PreparedUpload> {
+  validateUpload(file);
+  if (allowedInputMimeTypes.includes(file.mimetype as typeof allowedInputMimeTypes[number])) return prepareImageUpload(file as { buffer: Buffer; originalname: string; mimetype: typeof allowedInputMimeTypes[number] });
+  return prepareDocumentUpload(file);
+}
+
+async function prepareImageUpload(file: { buffer: Buffer; originalname: string; mimetype: typeof allowedInputMimeTypes[number] }): Promise<PreparedUpload> {
+  let normalized: { data: Buffer; info: OutputInfo };
+  try {
+    const image = sharp(file.buffer, { limitInputPixels: 20_000_000, failOn: "warning" });
+    const metadata = await image.metadata();
+    if (!["jpeg", "png", "webp"].includes(metadata.format ?? "") || (metadata.pages ?? 1) !== 1) throw new Error("Invalid image");
+    normalized = await image.rotate().flatten({ background: "#ffffff" }).jpeg({ quality: 94 }).toBuffer({ resolveWithObject: true });
+  } catch { throw new BadRequestException("La imagen esta danada, es animada o supera 20 megapixeles."); }
+  return { type: "IMAGE", data: normalized.data, mimeType: "image/jpeg", extension: ".jpg", width: normalized.info.width, height: normalized.info.height };
+}
+
+function prepareDocumentUpload(file: { buffer: Buffer; originalname: string; mimetype: string }): PreparedUpload {
+  const extension = extensionOf(file.originalname);
+  if (file.buffer.length > maxDocumentBytes) throw new BadRequestException("El archivo supera el tamano permitido de 10 MB.");
+  if (!allowedDocumentMimeTypes.includes(file.mimetype as typeof allowedDocumentMimeTypes[number])) throw new BadRequestException("Este formato de archivo no esta permitido.");
+  if (file.mimetype === "application/pdf") {
+    if (extension !== ".pdf" || !hasPdfSignature(file.buffer)) throw new BadRequestException("El PDF no coincide con su extension o contenido.");
+    return { type: "PDF", data: file.buffer, mimeType: "application/pdf", extension: ".pdf", width: null, height: null };
+  }
+  if (file.mimetype === "application/msword") {
+    if (extension !== ".doc" || !hasDocSignature(file.buffer)) throw new BadRequestException("El documento DOC no coincide con su extension o contenido.");
+    return { type: "DOCUMENT", data: file.buffer, mimeType: file.mimetype, extension: ".doc", width: null, height: null };
+  }
+  if (extension !== ".docx" || !hasZipSignature(file.buffer)) throw new BadRequestException("El documento DOCX no coincide con su extension o contenido.");
+  return { type: "DOCUMENT", data: file.buffer, mimeType: file.mimetype, extension: ".docx", width: null, height: null };
+}
+
+function validateUpload(file: { buffer: Buffer; originalname: string; mimetype: string } | undefined): asserts file is { buffer: Buffer; originalname: string; mimetype: string } {
+  if (!file) throw new BadRequestException("Selecciona un archivo permitido de hasta 10 MB.");
   if (!allowedExtensions.has(extensionOf(file.originalname))) throw new BadRequestException("La extension del archivo no esta permitida.");
+  const allowedMime = [...allowedInputMimeTypes, ...allowedDocumentMimeTypes].includes(file.mimetype as typeof allowedInputMimeTypes[number] | typeof allowedDocumentMimeTypes[number]);
+  if (!allowedMime) throw new BadRequestException("Este formato de archivo no esta permitido.");
+  if (file.buffer.length > maxImageBytes) throw new BadRequestException("El archivo supera el tamano permitido de 10 MB.");
 }
 
 function sanitizeOriginalName(value: string) {
@@ -155,4 +197,16 @@ function extensionOf(value: string) {
   const name = value.toLowerCase();
   const index = name.lastIndexOf(".");
   return index >= 0 ? name.slice(index) : "";
+}
+
+function hasPdfSignature(buffer: Buffer) {
+  return buffer.subarray(0, 5).toString("ascii") === "%PDF-";
+}
+
+function hasDocSignature(buffer: Buffer) {
+  return buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]));
+}
+
+function hasZipSignature(buffer: Buffer) {
+  return buffer.length >= 4 && buffer.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04]));
 }

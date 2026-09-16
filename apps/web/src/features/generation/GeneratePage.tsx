@@ -1,19 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, FileOutput, ImagePlus, LoaderCircle, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Download, FileOutput, FileText, ImagePlus, LoaderCircle, Paperclip, Trash2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ImageCaptureActions } from "@/components/ImageCaptureActions";
 import { ImageCropEditor } from "@/components/ImageCropEditor";
 import { Button } from "@/components/ui/button";
-import { apiFetch, apiJson, downloadGeneration } from "@/lib/api";
+import { apiFetch, apiJson, downloadFile, downloadGeneration } from "@/lib/api";
 import type { Generation, TemplatePage } from "@/features/studio/model";
 import { extractVariableKeys } from "./generation-model";
+import type { FilePage, StoredFile } from "@/features/files/file-model";
 
 interface SelectedFile {
   id: string;
   originalName: string;
   previewUrl: string;
 }
+
+type AttachmentFile = Pick<StoredFile, "id" | "originalName" | "type" | "mimeType" | "sizeBytes">;
 
 const maxFileBytes = 10 * 1024 * 1024;
 const acceptedMimes = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -27,6 +30,7 @@ export default function GeneratePage() {
   const [message, setMessage] = useState("");
   const [result, setResult] = useState<Generation | null>(null);
   const [cropTarget, setCropTarget] = useState<{ key: string; file: File } | null>(null);
+  const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
   const [previewUrl, setPreviewUrl] = useState("");
   const requestKey = useRef(crypto.randomUUID());
   const previewUrls = useRef(new Set<string>());
@@ -36,6 +40,11 @@ export default function GeneratePage() {
     queryKey: ["generation", "templates"],
     queryFn: () => apiJson<TemplatePage>("/templates?page=1&pageSize=100&status=ACTIVE&sortBy=updatedAt&sortOrder=desc"),
     staleTime: 0,
+  });
+  const libraryFiles = useQuery({
+    queryKey: ["generation", "attachment-files"],
+    queryFn: () => apiJson<FilePage>("/files?page=1&pageSize=50&sortBy=createdAt&sortOrder=desc"),
+    staleTime: 15_000,
   });
   const items = templates.data?.items ?? [];
   const selectedTemplate = items.find((item) => item.id === templateId) ?? items[0];
@@ -112,6 +121,7 @@ export default function GeneratePage() {
     setTemplateId(id);
     setVersionId("");
     setFiles({});
+    setAttachments([]);
     setResult(null);
     closePreview();
   }
@@ -127,6 +137,37 @@ export default function GeneratePage() {
     closePreview();
   }
 
+  function addAttachment(file: AttachmentFile) {
+    if (file.type !== "PDF" && file.type !== "DOCUMENT") {
+      setMessage("Solo puedes anexar PDF, DOC o DOCX.");
+      return;
+    }
+    setAttachments((current) => current.some((item) => item.id === file.id) ? current : [...current, file]);
+    setMessage("");
+    closePreview();
+  }
+
+  function removeAttachment(id: string) {
+    setAttachments((current) => current.filter((item) => item.id !== id));
+    closePreview();
+  }
+
+  function moveAttachment(id: string, direction: -1 | 1) {
+    setAttachments((current) => {
+      const index = current.findIndex((item) => item.id === id);
+      const nextIndex = index + direction;
+      if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return current;
+      const next = [...current];
+      const currentItem = next[index];
+      const targetItem = next[nextIndex];
+      if (!currentItem || !targetItem) return current;
+      next[index] = targetItem;
+      next[nextIndex] = currentItem;
+      return next;
+    });
+    closePreview();
+  }
+
   function buildGenerationPayload() {
     if (!selectedTemplate || !selectedVersion) throw new Error("Selecciona una plantilla con version activa.");
     const missing = slots.filter((slot) => slot.required && !files[slot.key!]);
@@ -136,6 +177,7 @@ export default function GeneratePage() {
       templateVersionId: selectedVersion.id,
       requestKey: requestKey.current,
       inputs: Object.fromEntries(Object.entries(files).map(([key, file]) => [key, { storedFileId: file.id }])),
+      attachments: attachments.map((file, index) => ({ fileId: file.id, order: index })),
       variables,
     };
   }
@@ -184,6 +226,35 @@ export default function GeneratePage() {
             <div className="generation-config-meta">
               <span><strong>Formato</strong>{selectedVersion?.paperSize ?? "Sin version"} {selectedVersion?.orientation === "LANDSCAPE" ? "horizontal" : "vertical"}</span>
               <span><strong>Campos de imagen</strong>{slots.length}</span>
+            </div>
+
+            <div className="generation-inputs">
+              <div className="section-heading">
+                <div><p className="eyebrow">Adjuntos</p><h3>PDFs anexos</h3></div>
+                <span className="section-count">{attachments.length}</span>
+              </div>
+              {attachments.length ? (
+                <div className="attachment-list">
+                  {attachments.map((file, index) => (
+                    <div className="attachment-row" key={file.id}>
+                      <span><Paperclip className="size-4" />{index + 1}. {file.originalName}</span>
+                      <div className="file-actions">
+                        <Button variant="ghost" size="icon" title="Subir orden" aria-label={`Subir ${file.originalName}`} disabled={index === 0} onClick={() => moveAttachment(file.id, -1)}><ArrowUp className="size-4" /></Button>
+                        <Button variant="ghost" size="icon" title="Bajar orden" aria-label={`Bajar ${file.originalName}`} disabled={index === attachments.length - 1} onClick={() => moveAttachment(file.id, 1)}><ArrowDown className="size-4" /></Button>
+                        <Button variant="ghost" size="icon" title="Descargar" aria-label={`Descargar ${file.originalName}`} onClick={() => void downloadFile(file.id, file.originalName)}><Download className="size-4" /></Button>
+                        <Button variant="ghost" size="icon" title="Quitar" aria-label={`Quitar ${file.originalName}`} onClick={() => removeAttachment(file.id)}><Trash2 className="size-4" /></Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="panel-hint">Opcional: agrega PDFs, DOC o DOCX de tu biblioteca para unirlos despues del documento principal.</p>}
+              <div className="attachment-picker">
+                {libraryFiles.isPending ? <div className="loading-row" role="status"><LoaderCircle className="size-4 animate-spin" />Cargando biblioteca...</div> : libraryFiles.isError ? <p className="studio-error" role="alert">{libraryFiles.error.message}</p> : attachmentCandidates(libraryFiles.data?.items ?? []).length ? attachmentCandidates(libraryFiles.data?.items ?? []).map((file) => {
+                  const selected = attachments.some((item) => item.id === file.id);
+                  return <button className="attachment-option" type="button" key={file.id} disabled={selected} onClick={() => addAttachment(file)} title={file.originalName}><FileText className="size-4" /><span>{file.originalName}</span><small>{selected ? "Agregado" : file.type === "PDF" ? "Agregar PDF" : "Convertir y anexar"}</small></button>;
+                }) : <p className="panel-hint">No hay PDFs o documentos en tu biblioteca. Sube uno desde Archivos para usarlo como anexo.</p>}
+              </div>
+              <p className="panel-hint">Los DOC/DOCX se convierten a PDF en backend antes de anexarse. Si LibreOffice no esta configurado en el servidor, la generacion mostrara un error claro.</p>
             </div>
           </section>
 
@@ -264,4 +335,8 @@ function revokePreview(url: string, urls: Set<string>) {
 
 function humanizeKey(value: string) {
   return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function attachmentCandidates(files: StoredFile[]): AttachmentFile[] {
+  return files.filter((file) => file.type === "PDF" || file.type === "DOCUMENT").map((file) => ({ id: file.id, originalName: file.originalName, type: file.type, mimeType: file.mimeType, sizeBytes: file.sizeBytes }));
 }

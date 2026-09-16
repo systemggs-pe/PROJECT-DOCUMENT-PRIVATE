@@ -9,6 +9,7 @@ import {
 } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { createHash, randomUUID } from "node:crypto";
+import { PDFDocument } from "pdf-lib";
 
 import { PdfEngineError } from "@ggs/pdf-engine";
 import { GenerationNumberService } from "../../common/database/generation-number.service";
@@ -17,6 +18,7 @@ import { requireTenant, resourceScope } from "../auth/tenant-context";
 import type { CurrentUser } from "../auth/types/current-user";
 import { PdfService, type PdfTemplateVersionRecord } from "../pdf/pdf.service";
 import { StorageService } from "../storage/storage.service";
+import { DocumentConversionService } from "../document-conversion/document-conversion.service";
 import { parseGenerationInput, type GenerationInput } from "./generation-input";
 import { GenerationsService } from "./generations.service";
 
@@ -51,6 +53,7 @@ type PreparedGeneration = {
     elements: TemplateElementRecord[];
   };
   files: Array<{ id: string; storageKey: string; bucket: string; mimeType: string; originalName: string }>;
+  attachments: Array<{ id: string; storageKey: string; bucket: string; type: "PDF" | "DOCUMENT"; mimeType: string; originalName: string; order: number }>;
   elements: TemplateElementRecord[];
   snapshot: Prisma.InputJsonValue;
   fingerprint: string;
@@ -70,6 +73,7 @@ export class GenerationRunnerService {
     @Inject(StorageService) private readonly storage: StorageService,
     @Inject(PdfService) private readonly pdf: PdfService,
     @Inject(GenerationsService) private readonly generations: GenerationsService,
+    @Inject(DocumentConversionService) private readonly documentConversion: DocumentConversionService,
   ) {}
 
   async generate(user: CurrentUser, body: unknown) {
@@ -86,13 +90,15 @@ export class GenerationRunnerService {
     const assets = await this.readAssets(prepared.files);
     let pdf: Buffer;
     try {
-      pdf = await this.pdf.renderTemplateVersion(
+      const mainPdf = await this.pdf.renderTemplateVersion(
         {
           ...prepared.version,
           elements: prepared.elements,
         } as unknown as PdfTemplateVersionRecord,
         assets,
       );
+      const attachments = await this.readAttachments(prepared.attachments);
+      pdf = await mergePdfBuffers([mainPdf, ...attachments]);
     } catch (error) {
       if (error instanceof PdfEngineError) {
         throw new BadRequestException("La plantilla no se puede renderizar.");
@@ -129,13 +135,15 @@ export class GenerationRunnerService {
     const prepared = await this.prepare(user, input, buildRequestHash(input), { allowExistingGeneration: false });
     const assets = await this.readAssets(prepared.files);
     try {
-      return await this.pdf.renderTemplateVersion(
+      const mainPdf = await this.pdf.renderTemplateVersion(
         {
           ...prepared.version,
           elements: prepared.elements,
         } as unknown as PdfTemplateVersionRecord,
         assets,
       );
+      const attachments = await this.readAttachments(prepared.attachments);
+      return await mergePdfBuffers([mainPdf, ...attachments]);
     } catch (error) {
       if (error instanceof PdfEngineError) {
         throw new BadRequestException("La plantilla no se puede renderizar.");
@@ -173,6 +181,12 @@ export class GenerationRunnerService {
       const fileIds = input.inputs.map((item) => item.fileId);
       const files = await tx.storedFile.findMany({ where: { id: { in: fileIds }, ...resourceScope(user), type: "IMAGE", bucket: this.storage.bucket }, select: { id: true, storageKey: true, bucket: true, mimeType: true, originalName: true } });
       if (files.length !== fileIds.length || files.some((file) => !isSafeInputKey(file.storageKey, user.id, organizationId) || !isImageMime(file.mimeType))) throw new BadRequestException({ message: "Una imagen no existe o no te pertenece.", error: "INVALID_STORED_FILE" });
+      const orderedAttachmentInputs = [...input.attachments].map((attachment, index) => ({ fileId: attachment.fileId, order: attachment.order ?? index })).sort((a, b) => a.order - b.order);
+      const attachmentIds = orderedAttachmentInputs.map((attachment) => attachment.fileId);
+      const attachmentFiles = attachmentIds.length ? await tx.storedFile.findMany({ where: { id: { in: attachmentIds }, ...resourceScope(user), type: { in: ["PDF", "DOCUMENT"] }, bucket: this.storage.bucket }, select: { id: true, storageKey: true, bucket: true, type: true, mimeType: true, originalName: true } }) : [];
+      if (attachmentFiles.length !== attachmentIds.length || attachmentFiles.some((file) => !isAllowedAttachment(file, user.id, organizationId))) throw new BadRequestException({ message: "Solo puedes anexar PDFs, DOC o DOCX propios.", error: "INVALID_ATTACHMENT_FILE" });
+      const attachmentById = new Map(attachmentFiles.map((file) => [file.id, { ...file, type: file.type as "PDF" | "DOCUMENT" }]));
+      const attachments = orderedAttachmentInputs.map((attachment, index) => ({ ...attachmentById.get(attachment.fileId)!, order: index }));
 
       const provided = new Map(input.inputs.map((item) => [item.key, item.fileId]));
       const resolvedElements = elements
@@ -187,16 +201,25 @@ export class GenerationRunnerService {
         width: toNumber(version.width),
         height: toNumber(version.height),
         pageCount: version.pageCount,
+        attachments: attachments.map((attachment) => ({ fileId: attachment.id, originalName: attachment.originalName, order: attachment.order })),
         elements: resolvedElements.map((element) => ({ ...element, x: toNumber(element.x), y: toNumber(element.y), width: toNumber(element.width), height: toNumber(element.height), rotation: toNumber(element.rotation) })),
       } as unknown as Prisma.InputJsonValue;
 
-      return { input, version, files, elements: resolvedElements, snapshot, fingerprint: fingerprint(version) };
+      return { input, version, files, attachments, elements: resolvedElements, snapshot, fingerprint: fingerprint(version) };
     });
   }
 
   private async readAssets(files: PreparedGeneration["files"]) {
     const contents = await Promise.all(files.map(async (file) => ({ file, data: await this.storage.read(file.storageKey) })));
     return contents.map(({ file, data }) => ({ key: file.id, contentType: file.mimeType, fileName: file.originalName, data }));
+  }
+
+  private async readAttachments(files: PreparedGeneration["attachments"]) {
+    return Promise.all(files.map(async (file) => {
+      const data = await this.storage.read(file.storageKey);
+      if (file.type === "PDF") return data;
+      return this.documentConversion.convertToPdf({ data, originalName: file.originalName, mimeType: file.mimeType });
+    }));
   }
 
   private async reserve(user: CurrentUser, prepared: PreparedGeneration, requestHash: string, generationId: string): Promise<Reservation> {
@@ -229,6 +252,7 @@ export class GenerationRunnerService {
             ...prepared.input.inputs.map((item) => ({ key: item.key, fileId: item.fileId, templateElementId: prepared.version.elements.find((element) => element.key === item.key)?.id as string })),
             ...Object.entries(prepared.input.variables).filter(([key]) => prepared.version.elements.some((element) => element.type === "TEXT" && variableIsUsed(element.properties, key))).map(([key, value]) => ({ key, value, templateElementId: prepared.version.elements.find((element) => element.type === "TEXT" && variableIsUsed(element.properties, key))?.id as string })),
           ] },
+          attachments: { create: prepared.attachments.map((attachment) => ({ fileId: attachment.id, order: attachment.order })) },
         },
       });
       return { generation };
@@ -239,9 +263,9 @@ export class GenerationRunnerService {
     const outputFileId = randomUUID();
     const organizationId = requireTenant(user);
     await this.prisma.client.$transaction(async (tx) => {
-      await tx.storedFile.create({ data: { id: outputFileId, originalName: `${generation.number}.pdf`, storageKey: outputKey, bucket: this.storage.bucket, type: "PDF", mimeType: "application/pdf", sizeBytes: BigInt(pdf.length), checksum: createHash("sha256").update(pdf).digest("hex"), createdById: user.id, organizationId, metadata: { generatedBy: "pdf-engine", templateVersionId: prepared.version.id } } });
+      await tx.storedFile.create({ data: { id: outputFileId, originalName: `${generation.number}.pdf`, storageKey: outputKey, bucket: this.storage.bucket, type: "PDF", mimeType: "application/pdf", sizeBytes: BigInt(pdf.length), checksum: createHash("sha256").update(pdf).digest("hex"), createdById: user.id, organizationId, metadata: { generatedBy: "pdf-engine", templateVersionId: prepared.version.id, attachmentCount: prepared.attachments.length } } });
       await tx.generation.update({ where: { id: generation.id }, data: { status: "COMPLETED", outputFileId, completedAt: new Date() } });
-      await tx.auditLog.create({ data: { userId: user.id, organizationId, action: "GENERATE", entityType: "GENERATION", entityId: generation.id, metadata: { event: "GENERATION_CREATED", number: generation.number, durationMs: Date.now() - startedAt, assetCount: prepared.input.inputs.length, outputSizeBytes: pdf.length } } });
+      await tx.auditLog.create({ data: { userId: user.id, organizationId, action: "GENERATE", entityType: "GENERATION", entityId: generation.id, metadata: { event: "GENERATION_CREATED", number: generation.number, durationMs: Date.now() - startedAt, assetCount: prepared.input.inputs.length, attachmentCount: prepared.attachments.length, outputSizeBytes: pdf.length } } });
     });
   }
 
@@ -272,7 +296,7 @@ function assertSameRequest(existingHash: string | null, requestHash: string) {
 }
 
 function buildRequestHash(input: GenerationInput) {
-  return createHash("sha256").update(JSON.stringify({ templateId: input.templateId ?? null, templateVersionId: input.templateVersionId ?? null, inputs: [...input.inputs].sort((a, b) => a.key.localeCompare(b.key)), variables: Object.fromEntries(Object.entries(input.variables).sort(([a], [b]) => a.localeCompare(b))) })).digest("hex");
+  return createHash("sha256").update(JSON.stringify({ templateId: input.templateId ?? null, templateVersionId: input.templateVersionId ?? null, inputs: [...input.inputs].sort((a, b) => a.key.localeCompare(b.key)), attachments: input.attachments.map((attachment, index) => ({ fileId: attachment.fileId, order: attachment.order ?? index })).sort((a, b) => a.order - b.order), variables: Object.fromEntries(Object.entries(input.variables).sort(([a], [b]) => a.localeCompare(b))) })).digest("hex");
 }
 
 function fingerprint(version: { id: string; versionNumber: number; paperSize: string; orientation: string; width: DecimalLike; height: DecimalLike; pageCount: number; elements: unknown[] }) {
@@ -308,4 +332,41 @@ function isImageMime(value: string) {
 
 function isSafeInputKey(key: string, userId: string, organizationId: string) {
   return (key.startsWith(`organizations/${organizationId}/files/`) || key.startsWith(`users/${userId}/files/`)) && key.endsWith("/original.jpg") && !key.includes("..") && !key.includes("\\") && !key.includes("://");
+}
+
+function isSafePdfKey(key: string, userId: string, organizationId: string) {
+  const isOwnedUpload = (key.startsWith(`organizations/${organizationId}/files/`) || key.startsWith(`users/${userId}/files/`)) && key.endsWith("/original.pdf");
+  const isOwnedGeneration = (key.startsWith(`organizations/${organizationId}/generations/`) || key.startsWith(`users/${userId}/generated/`)) && key.endsWith(".pdf");
+  return (isOwnedUpload || isOwnedGeneration) && !key.includes("..") && !key.includes("\\") && !key.includes("://");
+}
+
+function isSafeDocumentKey(key: string, userId: string, organizationId: string) {
+  const isOwnedUpload = key.startsWith(`organizations/${organizationId}/files/`) || key.startsWith(`users/${userId}/files/`);
+  return isOwnedUpload && (key.endsWith("/original.doc") || key.endsWith("/original.docx")) && !key.includes("..") && !key.includes("\\") && !key.includes("://");
+}
+
+function isAllowedAttachment(file: { type: string; mimeType: string; storageKey: string }, userId: string, organizationId: string) {
+  if (file.type === "PDF") return file.mimeType === "application/pdf" && isSafePdfKey(file.storageKey, userId, organizationId);
+  if (file.type === "DOCUMENT") return isConvertibleDocumentMime(file.mimeType) && isSafeDocumentKey(file.storageKey, userId, organizationId);
+  return false;
+}
+
+function isConvertibleDocumentMime(value: string) {
+  return value === "application/msword" || value === "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+}
+
+async function mergePdfBuffers(files: Buffer[]) {
+  if (files.length === 0) throw new BadRequestException("No hay PDFs para procesar.");
+  if (files.length === 1) return files[0]!;
+  try {
+    const merged = await PDFDocument.create();
+    for (const file of files) {
+      const document = await PDFDocument.load(file);
+      const pages = await merged.copyPages(document, document.getPageIndices());
+      pages.forEach((page) => merged.addPage(page));
+    }
+    return Buffer.from(await merged.save());
+  } catch {
+    throw new BadRequestException("Uno de los PDFs anexos esta danado o no se puede procesar.");
+  }
 }
