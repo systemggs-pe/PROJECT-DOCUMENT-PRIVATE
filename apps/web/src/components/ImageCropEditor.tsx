@@ -1,60 +1,78 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
-import { Crop, LoaderCircle, Move, ZoomIn } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
+import { Check, LoaderCircle, Maximize2, RotateCcw, RotateCw, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  applyAspectAroundCenter,
+  calculateRotatedDimensions,
+  clampCrop,
+  fullCrop,
+  initialCrop,
+  resizeCrop,
+  rotateAndCropImage,
+  rotateLeft,
+  rotateRight,
+  rotateWholeImage,
+  type CropAspect,
+  type CropHandle,
+  type CropRect,
+  type ImageDimensions,
+  type Rotation,
+} from "@/lib/image-crop";
 
 interface ImageCropEditorProps {
   file: File;
+  title?: string;
+  contextName?: string;
   onCancel: () => void;
   onApply: (file: File) => void;
 }
 
-type AspectOption = "original" | "1:1" | "4:3" | "3:4" | "16:9";
+type DragState = {
+  handle: CropHandle;
+  startX: number;
+  startY: number;
+  startCrop: CropRect;
+};
 
-const aspectOptions: Array<{ value: AspectOption; label: string }> = [
-  { value: "original", label: "Original" },
-  { value: "1:1", label: "1:1" },
-  { value: "4:3", label: "4:3" },
-  { value: "3:4", label: "3:4" },
-  { value: "16:9", label: "16:9" },
+const handles: Array<{ value: CropHandle; label: string }> = [
+  { value: "top-left", label: "Esquina superior izquierda" },
+  { value: "top", label: "Borde superior" },
+  { value: "top-right", label: "Esquina superior derecha" },
+  { value: "right", label: "Borde derecho" },
+  { value: "bottom-right", label: "Esquina inferior derecha" },
+  { value: "bottom", label: "Borde inferior" },
+  { value: "bottom-left", label: "Esquina inferior izquierda" },
+  { value: "left", label: "Borde izquierdo" },
 ];
 
-export function ImageCropEditor({ file, onCancel, onApply }: ImageCropEditorProps) {
+export function ImageCropEditor({ file, title = "Recortar antes de subir", contextName, onCancel, onApply }: ImageCropEditorProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const frameRef = useRef<HTMLDivElement | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
-  const dragRef = useRef<{ x: number; y: number; centerX: number; centerY: number } | null>(null);
-  const [aspect, setAspect] = useState<AspectOption>("original");
-  const [zoom, setZoom] = useState(1);
-  const [center, setCenter] = useState({ x: 0.5, y: 0.5 });
+  const dragRef = useRef<DragState | null>(null);
+  const [imageSize, setImageSize] = useState<ImageDimensions | null>(null);
+  const [stageSize, setStageSize] = useState({ width: 720, height: 480 });
+  const [crop, setCrop] = useState<CropRect | null>(null);
+  const [rotation, setRotation] = useState<Rotation>(0);
+  const [aspectRatio, setAspectRatio] = useState<CropAspect>("free");
   const [error, setError] = useState("");
-  const [isReady, setIsReady] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
 
-  const drawPreview = useCallback(() => {
-    const image = imageRef.current;
-    const canvas = canvasRef.current;
-    if (!image || !canvas) return;
-    const ratio = getAspectRatio(image, aspect);
-    const width = 720;
-    const height = Math.max(1, Math.round(width / ratio));
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext("2d");
-    if (!context) return;
-    const cropRect = getCropRect(image, ratio, zoom, center);
-    context.fillStyle = "#ffffff";
-    context.fillRect(0, 0, width, height);
-    context.imageSmoothingEnabled = true;
-    context.imageSmoothingQuality = "high";
-    context.drawImage(image, cropRect.x, cropRect.y, cropRect.width, cropRect.height, 0, 0, width, height);
-  }, [aspect, center, zoom]);
+  const rotatedSize = useMemo(() => imageSize ? calculateRotatedDimensions(imageSize, rotation) : null, [imageSize, rotation]);
+  const displaySize = useMemo(() => rotatedSize ? fitInto(rotatedSize, stageSize) : { width: 1, height: 1 }, [rotatedSize, stageSize]);
+  const displayScale = rotatedSize ? displaySize.width / rotatedSize.width : 1;
 
   useEffect(() => {
     const nextUrl = URL.createObjectURL(file);
     const image = new Image();
     image.onload = () => {
       imageRef.current = image;
-      setIsReady(true);
+      const nextSize = { width: image.naturalWidth, height: image.naturalHeight };
+      setImageSize(nextSize);
+      setRotation(0);
+      setAspectRatio("free");
+      setCrop(initialCrop(nextSize, "free"));
       setError("");
     };
     image.onerror = () => setError("No se pudo cargar la imagen seleccionada.");
@@ -66,30 +84,109 @@ export function ImageCropEditor({ file, onCancel, onApply }: ImageCropEditorProp
   }, [file]);
 
   useEffect(() => {
+    const stage = frameRef.current?.parentElement;
+    if (!stage) return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      const width = Math.max(280, entry.contentRect.width - 24);
+      const height = Math.max(260, entry.contentRect.height - 24);
+      setStageSize({ width, height });
+    });
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !isApplying) onCancel();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isApplying, onCancel]);
+
+  const drawPreview = useCallback(() => {
+    const canvas = canvasRef.current;
+    const image = imageRef.current;
+    if (!canvas || !image || !rotatedSize) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.round(displaySize.width * dpr));
+    canvas.height = Math.max(1, Math.round(displaySize.height * dpr));
+    canvas.style.width = `${displaySize.width}px`;
+    canvas.style.height = `${displaySize.height}px`;
+
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.setTransform(dpr, 0, 0, dpr, 0, 0);
+    context.clearRect(0, 0, displaySize.width, displaySize.height);
+    context.fillStyle = "#fff";
+    context.fillRect(0, 0, displaySize.width, displaySize.height);
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+
+    const scale = displaySize.width / rotatedSize.width;
+    if (rotation === 90) {
+      context.translate(displaySize.width, 0);
+      context.rotate(Math.PI / 2);
+    } else if (rotation === 180) {
+      context.translate(displaySize.width, displaySize.height);
+      context.rotate(Math.PI);
+    } else if (rotation === 270) {
+      context.translate(0, displaySize.height);
+      context.rotate(-Math.PI / 2);
+    }
+    context.drawImage(image, 0, 0, image.naturalWidth * scale, image.naturalHeight * scale);
+  }, [displaySize.height, displaySize.width, rotatedSize, rotation]);
+
+  useEffect(() => {
     drawPreview();
-  }, [drawPreview, isReady]);
+  }, [drawPreview]);
+
+  function changeAspect(nextAspect: CropAspect) {
+    if (!rotatedSize || !crop) return;
+    setAspectRatio(nextAspect);
+    setCrop(applyAspectAroundCenter(crop, rotatedSize, nextAspect));
+  }
+
+  function rotate(nextRotation: Rotation) {
+    if (!imageSize) return;
+    const nextSize = calculateRotatedDimensions(imageSize, nextRotation);
+    setRotation(nextRotation);
+    setCrop(initialCrop(nextSize, aspectRatio));
+  }
+
+  function startDrag(event: PointerEvent, handle: CropHandle) {
+    if (!crop || !rotatedSize || isApplying) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = { handle, startX: event.clientX, startY: event.clientY, startCrop: crop };
+  }
+
+  function moveDrag(event: PointerEvent) {
+    const drag = dragRef.current;
+    if (!drag || !rotatedSize) return;
+    event.preventDefault();
+    const deltaX = (event.clientX - drag.startX) / displayScale;
+    const deltaY = (event.clientY - drag.startY) / displayScale;
+    setCrop(resizeCrop(drag.startCrop, rotatedSize, drag.handle, deltaX, deltaY, aspectRatio));
+  }
+
+  function stopDrag(event: PointerEvent) {
+    if (!dragRef.current) return;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    dragRef.current = null;
+  }
 
   async function applyCrop() {
     const image = imageRef.current;
-    if (!image) return;
+    if (!image || !crop || !rotatedSize) return;
     setIsApplying(true);
     setError("");
     try {
-      const cropRect = getCropRect(image, getAspectRatio(image, aspect), zoom, center);
-      const outputWidth = Math.max(1, Math.min(1600, Math.round(cropRect.width)));
-      const outputHeight = Math.max(1, Math.round(outputWidth / (cropRect.width / cropRect.height)));
-      const canvas = document.createElement("canvas");
-      canvas.width = outputWidth;
-      canvas.height = outputHeight;
-      const context = canvas.getContext("2d");
-      if (!context) throw new Error("No se pudo preparar el recorte.");
-      context.fillStyle = "#ffffff";
-      context.fillRect(0, 0, outputWidth, outputHeight);
-      context.imageSmoothingEnabled = true;
-      context.imageSmoothingQuality = "high";
-      context.drawImage(image, cropRect.x, cropRect.y, cropRect.width, cropRect.height, 0, 0, outputWidth, outputHeight);
-      const blob = await canvasToBlob(canvas);
-      onApply(new File([blob], croppedFileName(file.name), { type: "image/jpeg", lastModified: Date.now() }));
+      const safeCrop = clampCrop(crop, rotatedSize, aspectRatio);
+      const croppedFile = await rotateAndCropImage(file, image, safeCrop, rotation);
+      onApply(croppedFile);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "No se pudo aplicar el recorte.");
     } finally {
@@ -97,84 +194,106 @@ export function ImageCropEditor({ file, onCancel, onApply }: ImageCropEditorProp
     }
   }
 
-  function startDrag(event: PointerEvent<HTMLCanvasElement>) {
-    event.currentTarget.setPointerCapture(event.pointerId);
-    dragRef.current = { x: event.clientX, y: event.clientY, centerX: center.x, centerY: center.y };
-  }
-
-  function moveDrag(event: PointerEvent<HTMLCanvasElement>) {
-    const drag = dragRef.current;
+  async function applyWithoutCrop() {
     const image = imageRef.current;
-    const canvas = canvasRef.current;
-    if (!drag || !image || !canvas) return;
-    const ratio = getAspectRatio(image, aspect);
-    const cropRect = getCropRect(image, ratio, zoom, center);
-    const deltaX = ((event.clientX - drag.x) / canvas.clientWidth) * cropRect.width;
-    const deltaY = ((event.clientY - drag.y) / canvas.clientHeight) * cropRect.height;
-    setCenter({
-      x: clamp(drag.centerX - deltaX / image.naturalWidth, 0, 1),
-      y: clamp(drag.centerY - deltaY / image.naturalHeight, 0, 1),
-    });
+    if (!image) return;
+    setIsApplying(true);
+    setError("");
+    try {
+      const outputFile = await rotateWholeImage(file, image, rotation);
+      onApply(outputFile);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "No se pudo exportar la imagen.");
+    } finally {
+      setIsApplying(false);
+    }
   }
 
-  function stopDrag(event: PointerEvent<HTMLCanvasElement>) {
-    event.currentTarget.releasePointerCapture(event.pointerId);
-    dragRef.current = null;
-  }
+  const cropStyle = crop ? {
+    left: `${crop.x * displayScale}px`,
+    top: `${crop.y * displayScale}px`,
+    width: `${crop.width * displayScale}px`,
+    height: `${crop.height * displayScale}px`,
+  } : undefined;
 
   return (
     <div className="inline-dialog-backdrop">
       <section className="image-crop-dialog" role="dialog" aria-modal="true" aria-labelledby="image-crop-title">
-        <div className="section-heading">
+        <header className="image-crop-header">
           <div>
             <p className="eyebrow">Editor de imagen</p>
-            <h3 id="image-crop-title">Recortar antes de subir</h3>
+            <h3 id="image-crop-title">{title}</h3>
+            <p>{contextName ?? file.name}</p>
           </div>
-          <Crop className="size-5" aria-hidden={true} />
-        </div>
+          <Button type="button" variant="ghost" size="icon" aria-label="Cerrar editor" onClick={onCancel} disabled={isApplying}><X className="size-4" /></Button>
+        </header>
 
-        <div className="image-crop-stage" aria-busy={!isReady}>
-          {!error ? (
-            <canvas
-              ref={canvasRef}
-              aria-label="Vista previa del recorte"
-              onPointerDown={startDrag}
-              onPointerMove={moveDrag}
-              onPointerUp={stopDrag}
-              onPointerCancel={stopDrag}
-            />
-          ) : null}
-          {!isReady && !error ? <div className="loading-row" role="status"><LoaderCircle className="size-4 animate-spin" />Cargando imagen...</div> : null}
-        </div>
+        <div className="image-crop-layout">
+          <div className="image-crop-stage" aria-busy={!imageSize}>
+            {error ? null : (
+              <div
+                className="image-crop-frame"
+                ref={frameRef}
+                style={{ width: displaySize.width, height: displaySize.height }}
+                onPointerMove={moveDrag}
+                onPointerUp={stopDrag}
+                onPointerCancel={stopDrag}
+              >
+                <canvas ref={canvasRef} aria-label="Imagen a recortar" />
+                {crop && <div className="image-crop-selection" style={cropStyle} onPointerDown={(event) => startDrag(event, "move")} aria-label="Area de recorte">
+                  {handles.map((handle) => <button key={handle.value} type="button" className={`image-crop-handle is-${handle.value}`} aria-label={handle.label} onPointerDown={(event) => startDrag(event, handle.value)} />)}
+                </div>}
+              </div>
+            )}
+            {!imageSize && !error ? <div className="loading-row" role="status"><LoaderCircle className="size-4 animate-spin" />Cargando imagen...</div> : null}
+          </div>
 
-        <div className="image-crop-controls">
-          <label className="field">
-            <span>Proporción</span>
-            <select value={aspect} onChange={(event) => { setAspect(event.target.value as AspectOption); setCenter({ x: 0.5, y: 0.5 }); }}>
-              {aspectOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-          </label>
-          <label className="field">
-            <span><ZoomIn className="size-4" aria-hidden={true} /> Zoom</span>
-            <input type="range" min="1" max="4" step="0.01" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} />
-          </label>
-          <label className="field">
-            <span><Move className="size-4" aria-hidden={true} /> Horizontal</span>
-            <input type="range" min="0" max="1" step="0.001" value={center.x} onChange={(event) => setCenter((current) => ({ ...current, x: Number(event.target.value) }))} />
-          </label>
-          <label className="field">
-            <span><Move className="size-4" aria-hidden={true} /> Vertical</span>
-            <input type="range" min="0" max="1" step="0.001" value={center.y} onChange={(event) => setCenter((current) => ({ ...current, y: Number(event.target.value) }))} />
-          </label>
+          <aside className="image-crop-controls" aria-label="Controles de recorte">
+            <div className="crop-control-group">
+              <span className="crop-control-title">Orientacion</span>
+              <div className="segmented-actions">
+                <Button type="button" variant="ghost" onClick={() => rotate(rotateLeft(rotation))} disabled={!imageSize || isApplying}><RotateCcw className="mr-2 size-4" />Izquierda</Button>
+                <Button type="button" variant="ghost" onClick={() => rotate(rotateRight(rotation))} disabled={!imageSize || isApplying}><RotateCw className="mr-2 size-4" />Derecha</Button>
+              </div>
+            </div>
+
+            <div className="crop-control-group">
+              <span className="crop-control-title">Formato</span>
+              <div className="crop-aspect-options">
+                {(["free", "1:1", "4:3"] as CropAspect[]).map((option) => (
+                  <button key={option} type="button" className={aspectRatio === option ? "is-active" : ""} onClick={() => changeAspect(option)} disabled={!crop || isApplying}>
+                    {option === "free" ? "Libre" : option}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="crop-control-group">
+              <span className="crop-control-title">Dimensiones</span>
+              <div className="crop-dimensions" aria-live="polite">
+                <span>Ancho <strong>{crop ? Math.round(crop.width) : 0}px</strong></span>
+                <span>Alto <strong>{crop ? Math.round(crop.height) : 0}px</strong></span>
+                <span>Rotacion <strong>{rotation}°</strong></span>
+              </div>
+            </div>
+
+            <div className="crop-control-group">
+              <Button type="button" variant="ghost" onClick={() => rotatedSize && setCrop(fullCrop(rotatedSize))} disabled={!rotatedSize || isApplying}><Maximize2 className="mr-2 size-4" />Seleccionar todo</Button>
+            </div>
+          </aside>
         </div>
 
         {error ? <p className="studio-error" role="alert">{error}</p> : null}
 
-        <div className="inline-dialog-actions">
+        <div className="inline-dialog-actions image-crop-actions">
+          <Button type="button" variant="ghost" onClick={() => void applyWithoutCrop()} disabled={!imageSize || isApplying}>
+            <Maximize2 className="mr-2 size-4" />Sin recorte
+          </Button>
           <Button type="button" variant="ghost" onClick={onCancel} disabled={isApplying}>Cancelar</Button>
-          <Button type="button" onClick={() => void applyCrop()} disabled={!isReady || isApplying}>
+          <Button type="button" onClick={() => void applyCrop()} disabled={!crop || !imageSize || isApplying}>
             <LoaderCircle className={`mr-2 size-4 ${isApplying ? "animate-spin" : "hidden"}`} />
-            Aplicar recorte
+            <Check className={`mr-2 size-4 ${isApplying ? "hidden" : ""}`} />
+            Aplicar
           </Button>
         </div>
       </section>
@@ -182,41 +301,7 @@ export function ImageCropEditor({ file, onCancel, onApply }: ImageCropEditorProp
   );
 }
 
-function getAspectRatio(image: HTMLImageElement, aspect: AspectOption) {
-  if (aspect === "1:1") return 1;
-  if (aspect === "4:3") return 4 / 3;
-  if (aspect === "3:4") return 3 / 4;
-  if (aspect === "16:9") return 16 / 9;
-  return image.naturalWidth / image.naturalHeight;
-}
-
-function getCropRect(image: HTMLImageElement, aspect: number, zoom: number, center: { x: number; y: number }) {
-  const naturalWidth = image.naturalWidth;
-  const naturalHeight = image.naturalHeight;
-  let width = Math.min(naturalWidth, naturalHeight * aspect);
-  let height = width / aspect;
-  if (height > naturalHeight) {
-    height = naturalHeight;
-    width = height * aspect;
-  }
-  width /= zoom;
-  height /= zoom;
-  const x = clamp(center.x * naturalWidth - width / 2, 0, naturalWidth - width);
-  const y = clamp(center.y * naturalHeight - height / 2, 0, naturalHeight - height);
-  return { x, y, width, height };
-}
-
-function canvasToBlob(canvas: HTMLCanvasElement) {
-  return new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("No se pudo exportar la imagen.")), "image/jpeg", 0.92);
-  });
-}
-
-function croppedFileName(name: string) {
-  const baseName = name.replace(/\.[^.]+$/, "").trim() || "imagen";
-  return `${baseName}-recortada.jpg`;
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
+function fitInto(size: ImageDimensions, bounds: ImageDimensions): ImageDimensions {
+  const scale = Math.min(bounds.width / size.width, bounds.height / size.height, 1);
+  return { width: Math.max(1, size.width * scale), height: Math.max(1, size.height * scale) };
 }

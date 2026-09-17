@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, Eye, FileImage, FileText, ImagePlus, LoaderCircle, Search, Trash2, UploadCloud } from "lucide-react";
 
+import { ImageCropEditor } from "@/components/ImageCropEditor";
 import { Button } from "@/components/ui/button";
 import { can, useCurrentIdentity } from "@/features/auth/authorization";
 import { apiFetch, apiJson, downloadFile } from "@/lib/api";
@@ -64,6 +65,7 @@ export default function FileLibrary() {
 
 function FileUploader({ busy, error, onUpload }: { busy: boolean; error: string; onUpload: (file: File) => void }) {
   const [selection, setSelection] = useState<{ file: File; preview: string } | null>(null);
+  const [pendingImage, setPendingImage] = useState<File | null>(null);
   const selected = selection?.file ?? null;
   const preview = selection?.preview ?? "";
   const validation = useMemo(() => selected ? validateFile(selected) : "", [selected]);
@@ -72,9 +74,20 @@ function FileUploader({ busy, error, onUpload }: { busy: boolean; error: string;
       if (preview) URL.revokeObjectURL(preview);
     };
   }, [preview]);
-  function choose(file: File | undefined) {
+  function setPreparedSelection(file: File | undefined) {
     if (preview) URL.revokeObjectURL(preview);
     setSelection(file ? { file, preview: URL.createObjectURL(file) } : null);
+  }
+  function choose(file: File | undefined) {
+    if (!file) {
+      setPreparedSelection(undefined);
+      return;
+    }
+    if (file.type.startsWith("image/") && !validateFile(file)) {
+      setPendingImage(file);
+      return;
+    }
+    setPreparedSelection(file);
   }
   return <section className="file-uploader" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); choose(event.dataTransfer.files[0]); }}>
     <div className="upload-dropzone">
@@ -92,6 +105,7 @@ function FileUploader({ busy, error, onUpload }: { busy: boolean; error: string;
     {selected && !validation && !selected.type.startsWith("image/") && selected.type !== "application/pdf" && <p className="panel-hint">Documento listo para subir. DOC/DOCX se convertiran a PDF cuando los uses como anexos.</p>}
     {(validation || error) && <p className="studio-error" role="alert">{validation || error}</p>}
     {selected && <Button disabled={busy || Boolean(validation)} onClick={() => onUpload(selected)}><LoaderCircle className={`mr-2 size-4 ${busy ? "animate-spin" : "hidden"}`} /><ImagePlus className={`mr-2 size-4 ${busy ? "hidden" : ""}`} />{busy ? "Subiendo..." : "Subir archivo"}</Button>}
+    {pendingImage && <ImageCropEditor file={pendingImage} contextName={pendingImage.name} onCancel={() => setPendingImage(null)} onApply={(file) => { setPendingImage(null); setPreparedSelection(file); }} />}
   </section>;
 }
 

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Archive, ChevronLeft, ChevronRight, Copy, FilePlus2, ImagePlus, LoaderCircle, Pencil, Plus, RotateCcw, Sparkles } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImageCaptureActions } from "@/components/ImageCaptureActions";
+import { ImageCropEditor } from "@/components/ImageCropEditor";
 import { Button } from "@/components/ui/button";
 import { apiFetch, apiJson } from "@/lib/api";
 import Editor from "./Editor";
@@ -114,11 +115,17 @@ function GenerationPanel({ template, onGenerated }: { template: Template; onGene
   const version = template.versions.find((item) => item.isActive) ?? template.versions[0];
   const slots = useMemo(() => version?.elements.filter((item) => item.type === "IMAGE") ?? [], [version]);
   const [files, setFiles] = useState<Record<string, StoredFile>>({});
+  const [pendingImage, setPendingImage] = useState<{ key: string; file: File; label: string } | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   if (!version) return null;
   const activeVersion = version;
-  async function selectFile(key: string, file: File | undefined) {
+  function handleSelectedImage(key: string, label: string, file: File | undefined) {
+    if (!file) return;
+    setMessage("");
+    setPendingImage({ key, file, label });
+  }
+  async function uploadImage(key: string, file: File) {
     if (!file) return;
     setMessage(""); setBusy(true);
     try {
@@ -142,5 +149,5 @@ function GenerationPanel({ template, onGenerated }: { template: Template; onGene
     } catch (error) { setMessage(error instanceof Error ? error.message : "No se pudo generar el documento."); }
     finally { setBusy(false); }
   }
-  return <section className="generation-panel"><div><p className="eyebrow">Probar plantilla</p><h3>Generar documento</h3><p className="text-sm text-[var(--muted)]">Version {activeVersion.versionNumber}, {slots.length} campo{slots.length === 1 ? "" : "s"} de imagen.</p></div><div className="slot-grid">{slots.map((slot) => <div className="upload-slot" key={slot.id}><span><ImagePlus className="size-4" />{slot.name}{slot.required ? " *" : ""}</span><ImageCaptureActions disabled={busy} onSelect={(file) => void selectFile(slot.key ?? slot.id, file)} /><small>{slot.key && files[slot.key] ? files[slot.key]?.originalName : "PNG, JPG o WebP, maximo 10 MB"}</small></div>)}</div>{message && <p className={message.includes("listo") ? "studio-success" : "studio-error"} role="status">{message}</p>}<Button onClick={() => void generate()} disabled={busy}><LoaderCircle className={`mr-2 size-4 ${busy ? "animate-spin" : "hidden"}`} />Generar PDF</Button></section>;
+  return <section className="generation-panel"><div><p className="eyebrow">Probar plantilla</p><h3>Generar documento</h3><p className="text-sm text-[var(--muted)]">Version {activeVersion.versionNumber}, {slots.length} campo{slots.length === 1 ? "" : "s"} de imagen.</p></div><div className="slot-grid">{slots.map((slot) => <div className="upload-slot" key={slot.id}><span><ImagePlus className="size-4" />{slot.name}{slot.required ? " *" : ""}</span><ImageCaptureActions disabled={busy} onSelect={(file) => handleSelectedImage(slot.key ?? slot.id, slot.name, file)} /><small>{slot.key && files[slot.key] ? files[slot.key]?.originalName : "PNG, JPG o WebP, maximo 10 MB"}</small></div>)}</div>{message && <p className={message.includes("listo") ? "studio-success" : "studio-error"} role="status">{message}</p>}<Button onClick={() => void generate()} disabled={busy}><LoaderCircle className={`mr-2 size-4 ${busy ? "animate-spin" : "hidden"}`} />Generar PDF</Button>{pendingImage && <ImageCropEditor file={pendingImage.file} contextName={pendingImage.label} onCancel={() => setPendingImage(null)} onApply={(file) => { const key = pendingImage.key; setPendingImage(null); void uploadImage(key, file); }} />}</section>;
 }

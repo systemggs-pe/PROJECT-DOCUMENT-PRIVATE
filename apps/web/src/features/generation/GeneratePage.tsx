@@ -316,7 +316,7 @@ export default function GeneratePage() {
 
           {previewUrl && <section className="generation-preview"><div className="section-heading"><div><p className="eyebrow">Preview</p><h3>Previsualizacion del PDF</h3></div><Button type="button" variant="ghost" onClick={closePreview}>Cerrar preview</Button></div><iframe src={previewUrl} title="Previsualizacion del PDF generado" /></section>}
           {result && <section className="generation-result" role="status"><div><p className="eyebrow">Documento listo</p><h3>{result.number}</h3><p>La generacion se completo con la version {selectedVersion?.versionNumber} de {selectedTemplate.name}.</p></div><Button onClick={() => void downloadGeneration(result.id, `${result.number}.pdf`)}><Download className="mr-2 size-4" />Descargar PDF</Button></section>}
-          {cropTarget && <ImageCropEditor file={cropTarget.file} onCancel={() => setCropTarget(null)} onApply={(file) => { const key = cropTarget.key; setCropTarget(null); closePreview(); uploadMutation.mutate({ key, file }); }} />}
+          {cropTarget && <ImageCropEditor file={cropTarget.file} contextName={slots.find((slot) => slot.key === cropTarget.key)?.name ?? cropTarget.file.name} onCancel={() => setCropTarget(null)} onApply={(file) => { const key = cropTarget.key; setCropTarget(null); closePreview(); uploadMutation.mutate({ key, file }); }} />}
         </>
       )}
     </div>
