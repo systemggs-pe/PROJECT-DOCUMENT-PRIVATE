@@ -5,7 +5,7 @@ import { z } from "zod";
 import { StorageService } from "../storage/storage.service";
 
 import { PrismaService } from "../../common/database/prisma.service";
-import { requireTenant, resourceScope } from "../auth/tenant-context";
+import { resourceScope } from "../auth/access-scope";
 import type { CurrentUser } from "../auth/types/current-user";
 
 const maxImageBytes = 10 * 1024 * 1024;
@@ -31,11 +31,10 @@ export class FilesService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService, @Inject(StorageService) private readonly storage?: StorageService) {}
 
   async upload(user: CurrentUser, file: { buffer: Buffer; originalname: string; mimetype: string } | undefined) {
-    const organizationId = requireTenant(user);
     if (!file) throw new BadRequestException("Selecciona un archivo permitido de hasta 10 MB.");
     const upload = await prepareUpload(file);
     const id = randomUUID();
-    const key = `organizations/${organizationId}/files/${id}/original${upload.extension}`;
+    const key = `company/files/${id}/original${upload.extension}`;
     const storage = this.requireStorage();
     await storage.put(key, upload.data, upload.mimeType);
     try {
@@ -43,10 +42,10 @@ export class FilesService {
         const saved = await tx.storedFile.create({ data: {
           id, originalName: sanitizeOriginalName(file.originalname), storageKey: key, bucket: storage.bucket,
           type: upload.type, mimeType: upload.mimeType, sizeBytes: BigInt(upload.data.length),
-          width: upload.width, height: upload.height, checksum: createHash("sha256").update(upload.data).digest("hex"), createdById: user.id, organizationId,
-          metadata: { sourceMimeType: file.mimetype, normalized: upload.type === "IMAGE", storagePathPolicy: "organizations/{organizationId}/files/{fileId}/original{extension}" },
+          width: upload.width, height: upload.height, checksum: createHash("sha256").update(upload.data).digest("hex"), createdById: user.id,
+          metadata: { sourceMimeType: file.mimetype, normalized: upload.type === "IMAGE", storagePathPolicy: "company/files/{fileId}/original{extension}" },
         } });
-        await tx.auditLog.create({ data: { userId: user.id, organizationId, action: "CREATE", entityType: "STORED_FILE", entityId: saved.id, metadata: { event: "FILE_UPLOADED", mimeType: saved.mimeType, sizeBytes: saved.sizeBytes.toString() } } });
+        await tx.auditLog.create({ data: { userId: user.id, action: "CREATE", entityType: "STORED_FILE", entityId: saved.id, metadata: { event: "FILE_UPLOADED", mimeType: saved.mimeType, sizeBytes: saved.sizeBytes.toString() } } });
         return saved;
       });
       return serializeStoredFile(result);
@@ -59,14 +58,14 @@ export class FilesService {
   async download(id: string, user: CurrentUser) {
     const file = await this.findOwnedOrThrow(id, user);
     const content = await this.requireStorage().read(file.storageKey);
-    await this.prisma.client.auditLog.create({ data: { userId: user.id, organizationId: user.organizationId, action: "DOWNLOAD", entityType: "STORED_FILE", entityId: id } });
+    await this.prisma.client.auditLog.create({ data: { userId: user.id, action: "DOWNLOAD", entityType: "STORED_FILE", entityId: id } });
     return { file, content };
   }
 
   async signedUrl(id: string, user: CurrentUser) {
     const file = await this.findOwnedOrThrow(id, user);
     const url = await this.requireStorage().sign(file.storageKey, signedUrlTtlSeconds);
-    await this.prisma.client.auditLog.create({ data: { userId: user.id, organizationId: user.organizationId, action: "DOWNLOAD", entityType: "STORED_FILE", entityId: id, metadata: { event: "FILE_SIGNED_URL_CREATED", expiresIn: signedUrlTtlSeconds } } });
+    await this.prisma.client.auditLog.create({ data: { userId: user.id, action: "DOWNLOAD", entityType: "STORED_FILE", entityId: id, metadata: { event: "FILE_SIGNED_URL_CREATED", expiresIn: signedUrlTtlSeconds } } });
     return { url, expiresIn: signedUrlTtlSeconds };
   }
 
@@ -81,7 +80,7 @@ export class FilesService {
     try {
       await this.prisma.client.$transaction(async (tx) => {
         await tx.storedFile.delete({ where: { id } });
-        await tx.auditLog.create({ data: { userId: user.id, organizationId: user.organizationId, action: "DELETE", entityType: "STORED_FILE", entityId: id, metadata: { event: "FILE_DELETED" } } });
+        await tx.auditLog.create({ data: { userId: user.id, action: "DELETE", entityType: "STORED_FILE", entityId: id, metadata: { event: "FILE_DELETED" } } });
       });
     } catch {
       throw new ConflictException("Esta imagen ya forma parte de un documento.");

@@ -5,9 +5,9 @@ import { AppController } from "./app.controller";
 import { PrismaModule } from "./common/database/prisma.module";
 import { AuditModule } from "./modules/audit/audit.module";
 import { AuthModule } from "./modules/auth/auth.module";
+import { CompanyModule } from "./modules/company/company.module";
 import { FilesModule } from "./modules/files/files.module";
 import { GenerationsModule } from "./modules/generations/generations.module";
-import { OrganizationsModule } from "./modules/organizations/organizations.module";
 import { PdfModule } from "./modules/pdf/pdf.module";
 import { RolesModule } from "./modules/roles/roles.module";
 import { StorageModule } from "./modules/storage/storage.module";
@@ -24,9 +24,9 @@ import { UsersModule } from "./modules/users/users.module";
     }),
     PrismaModule,
     AuthModule,
+    CompanyModule,
     UsersModule,
     RolesModule,
-    OrganizationsModule,
     TemplatesModule,
     TemplateVersionsModule,
     TemplateElementsModule,

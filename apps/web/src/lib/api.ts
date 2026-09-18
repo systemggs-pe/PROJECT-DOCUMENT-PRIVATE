@@ -34,8 +34,6 @@ export async function getMe() {
     avatarUrl: string | null;
     isActive: boolean;
     status: "ACTIVE" | "INACTIVE";
-    organizationId: string | null;
-    organization: { id: string; name: string; slug: string; status: "ACTIVE" | "SUSPENDED" | "ARCHIVED" } | null;
     roles: Array<{ id: string; key: string; name: string; isSystem: boolean }>;
     permissions: string[];
   }>;

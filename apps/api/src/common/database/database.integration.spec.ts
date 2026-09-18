@@ -169,7 +169,7 @@ describe("database integration", () => {
     expect(second.versionNumber).toBe(2);
     expect(duplicate.versionNumber).toBe(3);
     expect(duplicate.elements).toHaveLength(0);
-    await expect(templateVersionsService.findOwned(context.templateId, second.id, actor("foreign-user", context.organizationId))).rejects.toThrow();
+    await expect(templateVersionsService.findOwned(context.templateId, second.id, actor("foreign-user"))).rejects.toThrow();
     await templateVersionsService.activate(context.templateId, second.id, context.user);
     const versions = await templateVersionsService.listOwned(context.templateId, context.user);
     expect(versions.filter((version) => version.isActive)).toHaveLength(1);
@@ -199,7 +199,7 @@ describe("database integration", () => {
       marginTop: 0, marginRight: 0, marginBottom: 0, marginLeft: 0, pageCount: 1,
       elements: elements.map((element) => ({ ...element, key: element.type === "IMAGE" ? "dni_front" : "bad_key" })),
     })).rejects.toThrow();
-    await expect(templateVersionsService.update(context.templateId, version.id, actor("foreign-user", context.organizationId), {
+    await expect(templateVersionsService.update(context.templateId, version.id, actor("foreign-user"), {
       paperSize: "A4", orientation: "PORTRAIT", width: 595.28, height: 841.89,
       marginTop: 0, marginRight: 0, marginBottom: 0, marginLeft: 0, pageCount: 1, elements,
     })).rejects.toThrow();
@@ -207,9 +207,9 @@ describe("database integration", () => {
     const afterRejectedUpdate = await templateVersionsService.findOwned(context.templateId, version.id, context.user);
     expect(afterRejectedUpdate.elements).toHaveLength(4);
 
-    const file = await createStoredFile(context.userId, context.organizationId, "editor-version");
+    const file = await createStoredFile(context.userId, "editor-version");
     const allocated = await generationNumberService.next(`editor-version-${randomUUID()}`);
-    const generation = await createGeneration({ userId: context.userId, organizationId: context.organizationId, templateId: context.templateId, versionId: version.id, fileId: file.id, allocated });
+    const generation = await createGeneration({ userId: context.userId, templateId: context.templateId, versionId: version.id, fileId: file.id, allocated });
     await expect(templateVersionsService.update(context.templateId, version.id, context.user, {
       paperSize: "A4", orientation: "PORTRAIT", width: 595.28, height: 841.89,
       marginTop: 0, marginRight: 0, marginBottom: 0, marginLeft: 0, pageCount: 1, elements: [],
@@ -262,7 +262,6 @@ describe("database integration", () => {
         mimeType: "image/png",
         sizeBytes: 128n,
         createdById: context.userId,
-        organizationId: context.organizationId,
       },
     });
     const allocated = await generationNumberService.next(`history-${randomUUID()}`);
@@ -273,7 +272,6 @@ describe("database integration", () => {
         templateId: context.templateId,
         templateVersionId: version.id,
         createdById: context.userId,
-        organizationId: context.organizationId,
         outputFileId: file.id,
         status: "COMPLETED",
       },
@@ -321,13 +319,12 @@ describe("database integration", () => {
     const userB = await createTemplateContext("isolation-b");
     const versionA = await createVersion(userA.templateId);
     const versionB = await createVersion(userB.templateId);
-    const fileA = await createStoredFile(userA.userId, userA.organizationId, "a");
-    const fileB = await createStoredFile(userB.userId, userB.organizationId, "b");
+    const fileA = await createStoredFile(userA.userId, "a");
+    const fileB = await createStoredFile(userB.userId, "b");
     const allocatedA = await generationNumberService.next(counterKey);
     const allocatedB = await generationNumberService.next(counterKey);
     const generationA = await createGeneration({
       userId: userA.userId,
-      organizationId: userA.organizationId,
       templateId: userA.templateId,
       versionId: versionA.id,
       fileId: fileA.id,
@@ -335,7 +332,6 @@ describe("database integration", () => {
     });
     const generationB = await createGeneration({
       userId: userB.userId,
-      organizationId: userB.organizationId,
       templateId: userB.templateId,
       versionId: versionB.id,
       fileId: fileB.id,
@@ -381,38 +377,28 @@ describe("database integration", () => {
 
 async function createTemplateContext(label: string) {
   const id = randomUUID();
-  const organization = await prisma.organization.create({
-    data: {
-      name: `Integration ${label} ${id}`,
-      slug: `integration-${label}-${id}`,
-      status: "ACTIVE",
-    },
-  });
   const user = await prisma.user.create({
     data: {
       email: `${label}-${id}@integration.local`,
       authProviderId: `${label}-${id}`,
       name: `Integration ${label}`,
-      organizationId: organization.id,
     },
   });
   const template = await prisma.template.create({
     data: {
       name: `Integration ${label} ${id}`,
       createdById: user.id,
-      organizationId: organization.id,
     },
   });
 
   return {
     userId: user.id,
-    user: actor(user.id, organization.id),
-    organizationId: organization.id,
+    user: actor(user.id),
     templateId: template.id,
   };
 }
 
-async function cleanupTemplateContext(context: { userId: string; organizationId: string; templateId: string; versionIds: string[] }) {
+async function cleanupTemplateContext(context: { userId: string; templateId: string; versionIds: string[] }) {
   await prisma.templateElement.deleteMany({
     where: {
       templateVersionId: {
@@ -429,10 +415,9 @@ async function cleanupTemplateContext(context: { userId: string; organizationId:
   });
   await prisma.template.delete({ where: { id: context.templateId } });
   await prisma.user.delete({ where: { id: context.userId } });
-  await prisma.organization.delete({ where: { id: context.organizationId } });
 }
 
-function actor(userId: string, organizationId: string): CurrentUser {
+function actor(userId: string): CurrentUser {
   const roles = [{ id: "USER", key: "USER", name: "Usuario", isSystem: true }];
   return {
     id: userId,
@@ -442,8 +427,6 @@ function actor(userId: string, organizationId: string): CurrentUser {
     avatarUrl: null,
     isActive: true,
     status: "ACTIVE",
-    organizationId,
-    organization: { id: organizationId, name: "Integration org", slug: organizationId, status: "ACTIVE" },
     roles,
     permissions: [],
     authorization: { roles, permissions: [] },
@@ -512,7 +495,7 @@ function createVersion(templateId: string) {
   });
 }
 
-function createStoredFile(userId: string, organizationId: string, label: string) {
+function createStoredFile(userId: string, label: string) {
   return prisma.storedFile.create({
     data: {
       originalName: `${label}.png`,
@@ -522,14 +505,12 @@ function createStoredFile(userId: string, organizationId: string, label: string)
       mimeType: "image/png",
       sizeBytes: 128n,
       createdById: userId,
-      organizationId,
     },
   });
 }
 
 function createGeneration(input: {
   userId: string;
-  organizationId?: string;
   templateId: string;
   versionId: string;
   fileId: string;
@@ -542,9 +523,9 @@ function createGeneration(input: {
       templateId: input.templateId,
       templateVersionId: input.versionId,
       createdById: input.userId,
-      organizationId: input.organizationId ?? "00000000-0000-4000-8000-000000000201",
       outputFileId: input.fileId,
       status: "COMPLETED",
     },
   });
 }
+

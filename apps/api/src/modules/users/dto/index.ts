@@ -16,7 +16,6 @@ const createUserSchema = z.object({
   name: z.string().trim().min(1).max(120).optional(),
   avatarUrl: z.url().max(500).optional(),
   isActive: z.boolean().default(true),
-  organizationId: z.uuid().optional(),
   roleIds: z.array(z.uuid()).max(10).default([]),
 }).strict();
 
@@ -24,7 +23,6 @@ const updateUserSchema = z.object({
   name: z.string().trim().min(1).max(120).nullable().optional(),
   avatarUrl: z.url().max(500).nullable().optional(),
   isActive: z.boolean().optional(),
-  organizationId: z.uuid().optional(),
 }).strict();
 
 const roleAssignmentSchema = z.object({

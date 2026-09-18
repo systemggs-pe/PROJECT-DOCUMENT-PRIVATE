@@ -17,19 +17,7 @@ export class UserSyncService {
   async sync(identity: SupabaseIdentity): Promise<CurrentUser> {
     const user = await this.prisma.client.$transaction(async (tx) => {
       const bootstrapSuperadmin = isBootstrapSuperadmin(identity.email, this.config.get<string>("SUPERADMIN_EMAIL"));
-      const defaultOrganizationSlug = getDefaultOrganizationSlug(this.config.get<string>("DEFAULT_ORGANIZATION_SLUG"));
-      const defaultOrganization = await tx.organization.upsert({
-        where: { slug: defaultOrganizationSlug },
-        update: { status: "ACTIVE" },
-        create: {
-          name: defaultOrganizationSlug === "demo-organization" ? "Organization Demo" : humanizeSlug(defaultOrganizationSlug),
-          slug: defaultOrganizationSlug,
-          legalName: defaultOrganizationSlug === "demo-organization" ? "GGS Demo" : null,
-          status: "ACTIVE",
-        },
-        select: { id: true, name: true, slug: true, status: true },
-      });
-      let synced = await tx.user.upsert({
+      const synced = await tx.user.upsert({
         where: {
           authProviderId: identity.authProviderId,
         },
@@ -45,14 +33,9 @@ export class UserSyncService {
           name: identity.name,
           avatarUrl: identity.avatarUrl,
           lastLoginAt: new Date(),
-          organizationId: defaultOrganization?.id ?? null,
         },
-        include: { userRoles: true, organization: true },
+        include: { userRoles: true },
       });
-
-      if (!synced.organizationId) {
-        synced = await tx.user.update({ where: { id: synced.id }, data: { organizationId: defaultOrganization.id }, include: { userRoles: true, organization: true } });
-      }
 
       const roleKey = bootstrapSuperadmin ? SYSTEM_ROLES.SUPERADMIN : SYSTEM_ROLES.USER;
       const role = await tx.role.findUnique({ where: { key: roleKey }, select: { id: true } });
@@ -68,10 +51,6 @@ export class UserSyncService {
       throw new ForbiddenException("User account is disabled");
     }
     const snapshot = await this.authorization.getSnapshot(user.id);
-    const isSuperadmin = snapshot.roles.some((role) => role.key === SYSTEM_ROLES.SUPERADMIN);
-    if (!isSuperadmin && user.organization?.status !== "ACTIVE") {
-      throw new ForbiddenException("La organizacion no esta activa.");
-    }
 
     return {
       id: user.id,
@@ -81,8 +60,6 @@ export class UserSyncService {
       avatarUrl: user.avatarUrl,
       isActive: user.isActive,
       status: user.isActive ? "ACTIVE" : "INACTIVE",
-      organizationId: user.organizationId,
-      organization: user.organization ? { id: user.organization.id, name: user.organization.name, slug: user.organization.slug, status: user.organization.status } : null,
       roles: snapshot.roles,
       permissions: snapshot.permissions,
       authorization: snapshot,
@@ -92,17 +69,4 @@ export class UserSyncService {
 
 function isBootstrapSuperadmin(email: string, configuredEmail?: string) {
   return Boolean(configuredEmail && email.trim().toLowerCase() === configuredEmail.trim().toLowerCase());
-}
-
-function getDefaultOrganizationSlug(configuredSlug?: string) {
-  const slug = configuredSlug?.trim();
-  return slug && slug.length > 0 ? slug : "demo-organization";
-}
-
-function humanizeSlug(slug: string) {
-  return slug
-    .split("-")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
 }

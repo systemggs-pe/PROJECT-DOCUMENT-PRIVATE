@@ -381,7 +381,7 @@ summary:focus-visible {
   .generation-inputs,
   .generation-config,
   .template-detail,
-  .organization-table,
+  .company-table,
   .admin-table {
     max-width: 100%;
   }
@@ -393,7 +393,7 @@ summary:focus-visible {
   .generation-detail-grid,
   .history-filter-grid,
   .roles-layout,
-  .organization-summary,
+  .company-summary,
   .admin-controls,
   .field-grid,
   .slot-grid {
@@ -432,7 +432,7 @@ summary:focus-visible {
   }
 
   .history-table,
-  .organization-table,
+  .company-table,
   .admin-table {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -443,8 +443,8 @@ summary:focus-visible {
     min-width: 650px;
   }
 
-  .organization-head,
-  .organization-row {
+  .company-head,
+  .company-row {
     min-width: 780px;
   }
 
@@ -1870,9 +1870,9 @@ summary:focus-visible {
 .admin-table,
 .role-list,
 .permission-editor,
-.organization-table,
-.organization-form,
-.organization-summary {
+.company-table,
+.company-form,
+.company-summary {
   border: 1px solid var(--line);
   background: var(--panel);
 }
@@ -1887,8 +1887,8 @@ summary:focus-visible {
   border-bottom: 1px solid var(--line);
 }
 
-.organization-head,
-.organization-row {
+.company-head,
+.company-row {
   display: grid;
   grid-template-columns: minmax(220px, 1.6fr) 120px repeat(3, minmax(80px, 0.6fr)) 96px;
   gap: 0.75rem;
@@ -1897,74 +1897,74 @@ summary:focus-visible {
   border-bottom: 1px solid var(--line);
 }
 
-.organization-head {
+.company-head {
   background: var(--surface-elevated);
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 650;
 }
 
-.organization-row:last-child {
+.company-row:last-child {
   border-bottom: 0;
 }
 
-.organization-row strong,
-.organization-row small {
+.company-row strong,
+.company-row small {
   display: block;
 }
 
-.organization-row small,
-.organization-row > span {
+.company-row small,
+.company-row > span {
   color: var(--muted);
   font-size: 0.82rem;
 }
 
-.organization-row strong {
+.company-row strong {
   color: var(--ink);
 }
 
-.organization-form {
+.company-form {
   display: grid;
   gap: 0.9rem;
   padding: 1rem;
 }
 
-.organization-form-grid {
+.company-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
 }
 
-.organization-form-wide {
+.company-form-wide {
   grid-column: 1 / -1;
 }
 
-.organization-summary {
+.company-summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.organization-summary article {
+.company-summary article {
   display: grid;
   gap: 0.35rem;
   padding: 1rem;
   border-right: 1px solid var(--line);
 }
 
-.organization-summary article:last-child {
+.company-summary article:last-child {
   border-right: 0;
 }
 
-.organization-summary svg {
+.company-summary svg {
   color: var(--accent);
 }
 
-.organization-summary span {
+.company-summary span {
   color: var(--muted);
   font-size: 0.8rem;
 }
 
-.organization-summary strong {
+.company-summary strong {
   color: var(--ink);
   font-size: 1.35rem;
 }
@@ -2224,14 +2224,14 @@ summary:focus-visible {
   }
 
   .admin-table,
-  .organization-table {
+  .company-table {
     overflow-x: auto;
   }
 
   .admin-head,
   .admin-row,
-  .organization-head,
-  .organization-row {
+  .company-head,
+  .company-row {
     min-width: 780px;
   }
 
@@ -2267,17 +2267,17 @@ summary:focus-visible {
     gap: 0.35rem;
   }
 
-  .organization-form-grid,
-  .organization-summary {
+  .company-form-grid,
+  .company-summary {
     grid-template-columns: 1fr;
   }
 
-  .organization-summary article {
+  .company-summary article {
     border-right: 0;
     border-bottom: 1px solid var(--line);
   }
 
-  .organization-summary article:last-child {
+  .company-summary article:last-child {
     border-bottom: 0;
   }
 }
@@ -2291,3 +2291,4 @@ summary:focus-visible {
     animation-duration: 0.01ms !important;
   }
 }
+

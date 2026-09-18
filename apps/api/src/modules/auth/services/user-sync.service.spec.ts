@@ -7,113 +7,58 @@ import { UserSyncService } from "./user-sync.service";
 
 describe("UserSyncService", () => {
   it("creates or updates the authenticated user by authProviderId", async () => {
-    const syncedUser = {
-      id: "local-user-id",
-      authProviderId: "4eb77b04-1389-48df-8d3c-e7de38e63f7c",
-      email: "user@example.com",
-      name: "Ada",
-      avatarUrl: null,
-      isActive: true,
-      organizationId: "org-a",
-      organization: { id: "org-a", name: "Org A", slug: "org-a", status: "ACTIVE" },
-      userRoles: [],
-    };
+    const syncedUser = activeUser({ userRoles: [] });
     const upsert = vi.fn().mockResolvedValue(syncedUser);
     const findUnique = vi.fn().mockResolvedValue({ id: "role-user-id" });
     const create = vi.fn().mockResolvedValue({});
-    const auditCreate = vi.fn().mockResolvedValue({});
-    const transaction = vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => callback({ user: { upsert, update: vi.fn() }, organization: { upsert: vi.fn().mockResolvedValue({ id: "org-a", name: "Org A", slug: "org-a", status: "ACTIVE" }) }, role: { findUnique }, userRole: { create }, auditLog: { create: auditCreate } }));
+    const transaction = vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => callback({ user: { upsert }, role: { findUnique }, userRole: { create }, auditLog: { create: vi.fn() } }));
     const authorization = { getSnapshot: vi.fn().mockResolvedValue({ roles: [{ id: "role-user-id", key: "USER", name: "Usuario", isSystem: true }], permissions: ["generations.read"] }) } as unknown as AuthorizationService;
     const service = new UserSyncService({ client: { $transaction: transaction } } as unknown as PrismaService, { get: vi.fn().mockReturnValue("") } as never, authorization);
 
-    await expect(
-      service.sync({
-        authProviderId: "4eb77b04-1389-48df-8d3c-e7de38e63f7c",
-        email: "user@example.com",
-        name: "Ada",
-        avatarUrl: null,
-      }),
-    ).resolves.toMatchObject({
-      id: "local-user-id",
-      authProviderId: "4eb77b04-1389-48df-8d3c-e7de38e63f7c",
-      email: "user@example.com",
+    await expect(service.sync({ authProviderId: syncedUser.authProviderId, email: syncedUser.email, name: syncedUser.name, avatarUrl: null })).resolves.toMatchObject({
+      id: syncedUser.id,
+      email: syncedUser.email,
       isActive: true,
+      roles: [{ key: "USER" }],
     });
-    expect(upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: {
-          authProviderId: "4eb77b04-1389-48df-8d3c-e7de38e63f7c",
-        },
-      }),
-    );
-    expect(create).toHaveBeenCalledWith({ data: { userId: "local-user-id", roleId: "role-user-id" } });
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ where: { authProviderId: syncedUser.authProviderId } }));
+    expect(create).toHaveBeenCalledWith({ data: { userId: syncedUser.id, roleId: "role-user-id" } });
   });
 
   it("rejects an inactive local user with 403", async () => {
-    const upsert = vi.fn().mockResolvedValue({
-      id: "local-user-id",
-      authProviderId: "4eb77b04-1389-48df-8d3c-e7de38e63f7c",
-      email: "user@example.com",
-      name: null,
-      avatarUrl: null,
-      isActive: false,
-      organizationId: "org-a",
-      organization: { id: "org-a", name: "Org A", slug: "org-a", status: "ACTIVE" },
-      userRoles: [],
-    });
-    const findUnique = vi.fn().mockResolvedValue({ id: "role-user-id" });
-    const transaction = vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => callback({ user: { upsert, update: vi.fn() }, organization: { upsert: vi.fn().mockResolvedValue({ id: "org-a", name: "Org A", slug: "org-a", status: "ACTIVE" }) }, role: { findUnique }, userRole: { create: vi.fn() }, auditLog: { create: vi.fn() } }));
-    const authorization = { getSnapshot: vi.fn() } as unknown as AuthorizationService;
-    const service = new UserSyncService({ client: { $transaction: transaction } } as unknown as PrismaService, { get: vi.fn().mockReturnValue("") } as never, authorization);
+    const upsert = vi.fn().mockResolvedValue(activeUser({ isActive: false, userRoles: [] }));
+    const transaction = vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => callback({ user: { upsert }, role: { findUnique: vi.fn() }, userRole: { create: vi.fn() }, auditLog: { create: vi.fn() } }));
+    const service = new UserSyncService({ client: { $transaction: transaction } } as unknown as PrismaService, { get: vi.fn().mockReturnValue("") } as never, { getSnapshot: vi.fn() } as unknown as AuthorizationService);
 
-    await expect(
-      service.sync({
-        authProviderId: "4eb77b04-1389-48df-8d3c-e7de38e63f7c",
-        email: "user@example.com",
-        name: null,
-        avatarUrl: null,
-      }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.sync({ authProviderId: "auth-id", email: "user@example.com", name: null, avatarUrl: null })).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it("assigns the default active organization to an existing user without organization", async () => {
-    const organization = { id: "org-default", name: "Organization Demo", slug: "demo-organization", status: "ACTIVE" };
-    const syncedUser = {
-      id: "local-user-id",
-      authProviderId: "4eb77b04-1389-48df-8d3c-e7de38e63f7c",
-      email: "admin@example.com",
-      name: "Admin",
-      avatarUrl: null,
-      isActive: true,
-      organizationId: null,
-      organization: null,
-      userRoles: [{ id: "user-role-id" }],
-    };
-    const updatedUser = { ...syncedUser, organizationId: organization.id, organization };
-    const update = vi.fn().mockResolvedValue(updatedUser);
-    const transaction = vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => callback({
-      user: { upsert: vi.fn().mockResolvedValue(syncedUser), update },
-      organization: { upsert: vi.fn().mockResolvedValue(organization) },
-      role: { findUnique: vi.fn() },
-      userRole: { create: vi.fn() },
-      auditLog: { create: vi.fn() },
-    }));
-    const authorization = { getSnapshot: vi.fn().mockResolvedValue({ roles: [{ id: "role-superadmin-id", key: "SUPERADMIN", name: "Superadministrador", isSystem: true }], permissions: ["generations.create"] }) } as unknown as AuthorizationService;
+  it("uses SUPERADMIN role when the configured bootstrap email matches", async () => {
+    const syncedUser = activeUser({ email: "admin@example.com", userRoles: [] });
+    const findUnique = vi.fn().mockResolvedValue({ id: "role-superadmin-id" });
+    const create = vi.fn().mockResolvedValue({});
+    const transaction = vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => callback({ user: { upsert: vi.fn().mockResolvedValue(syncedUser) }, role: { findUnique }, userRole: { create }, auditLog: { create: vi.fn() } }));
+    const authorization = { getSnapshot: vi.fn().mockResolvedValue({ roles: [{ id: "role-superadmin-id", key: "SUPERADMIN", name: "Superadministrador", isSystem: true }], permissions: ["company.update"] }) } as unknown as AuthorizationService;
     const config = { get: vi.fn((key: string) => key === "SUPERADMIN_EMAIL" ? "admin@example.com" : "") };
     const service = new UserSyncService({ client: { $transaction: transaction } } as unknown as PrismaService, config as never, authorization);
 
-    await expect(
-      service.sync({
-        authProviderId: "4eb77b04-1389-48df-8d3c-e7de38e63f7c",
-        email: "admin@example.com",
-        name: "Admin",
-        avatarUrl: null,
-      }),
-    ).resolves.toMatchObject({
-      organizationId: "org-default",
-      organization,
+    await expect(service.sync({ authProviderId: syncedUser.authProviderId, email: "admin@example.com", name: "Admin", avatarUrl: null })).resolves.toMatchObject({
       roles: [{ key: "SUPERADMIN" }],
     });
-    expect(update).toHaveBeenCalledWith(expect.objectContaining({ data: { organizationId: "org-default" } }));
+    expect(findUnique).toHaveBeenCalledWith({ where: { key: "SUPERADMIN" }, select: { id: true } });
+    expect(create).toHaveBeenCalledWith({ data: { userId: syncedUser.id, roleId: "role-superadmin-id" } });
   });
 });
+
+function activeUser(overrides: Partial<{ authProviderId: string; email: string; name: string | null; avatarUrl: string | null; isActive: boolean; userRoles: unknown[] }> = {}) {
+  return {
+    id: "local-user-id",
+    authProviderId: "auth-id",
+    email: "user@example.com",
+    name: "Ada",
+    avatarUrl: null,
+    isActive: true,
+    userRoles: [{ id: "user-role-id" }],
+    ...overrides,
+  };
+}

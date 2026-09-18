@@ -2,7 +2,7 @@ import { ConflictException, Inject, Injectable, NotFoundException } from "@nestj
 import type { Prisma } from "@prisma/client";
 
 import { PrismaService } from "../../common/database/prisma.service";
-import { resourceScope } from "../auth/tenant-context";
+import { resourceScope } from "../auth/access-scope";
 import type { CurrentUser } from "../auth/types/current-user";
 import { parseTemplateVersionInput, type TemplateVersionInput } from "../templates/template-input";
 import { versionData } from "../templates/templates.service";
@@ -56,7 +56,7 @@ export class TemplateVersionsService {
       await tx.template.update({ where: { id: templateId }, data: { updatedAt: new Date() } });
       await tx.auditLog.create({
         data: {
-          userId: user.id, organizationId: user.organizationId, action: "UPDATE", entityType: "TEMPLATE_VERSION", entityId: versionId,
+          userId: user.id, action: "UPDATE", entityType: "TEMPLATE_VERSION", entityId: versionId,
           metadata: { event: "TEMPLATE_VERSION_SAVED", versionNumber: version.versionNumber, elementCount: input.elements.length },
         },
       });
@@ -71,7 +71,7 @@ export class TemplateVersionsService {
       if (template.status === "ARCHIVED") throw new ConflictException("Restaura la plantilla antes de crear una version.");
       const latest = await tx.templateVersion.aggregate({ where: { templateId }, _max: { versionNumber: true } });
       const created = await tx.templateVersion.create({ data: { ...versionData(templateId, input, false), versionNumber: (latest._max.versionNumber ?? 0) + 1 } });
-      await tx.auditLog.create({ data: { userId: user.id, organizationId: user.organizationId, action: "CREATE", entityType: "TEMPLATE_VERSION", entityId: created.id, metadata: { event: "TEMPLATE_VERSION_CREATED", versionNumber: created.versionNumber } } });
+      await tx.auditLog.create({ data: { userId: user.id, action: "CREATE", entityType: "TEMPLATE_VERSION", entityId: created.id, metadata: { event: "TEMPLATE_VERSION_CREATED", versionNumber: created.versionNumber } } });
       return created;
     });
     return this.findOwned(templateId, version.id, user);
@@ -91,7 +91,7 @@ export class TemplateVersionsService {
           elements: { create: source.elements.map((element) => ({ type: element.type, name: element.name, key: element.key, page: element.page, x: element.x, y: element.y, width: element.width, height: element.height, rotation: element.rotation, zIndex: element.zIndex, required: element.required, properties: element.properties as Prisma.InputJsonValue })) },
         },
       });
-      await tx.auditLog.create({ data: { userId: user.id, organizationId: user.organizationId, action: "CREATE", entityType: "TEMPLATE_VERSION", entityId: created.id, metadata: { event: "TEMPLATE_VERSION_DUPLICATED", sourceVersionId: versionId, versionNumber: created.versionNumber } } });
+      await tx.auditLog.create({ data: { userId: user.id, action: "CREATE", entityType: "TEMPLATE_VERSION", entityId: created.id, metadata: { event: "TEMPLATE_VERSION_DUPLICATED", sourceVersionId: versionId, versionNumber: created.versionNumber } } });
       return created;
     });
     return this.findOwned(templateId, version.id, user);
@@ -105,7 +105,7 @@ export class TemplateVersionsService {
       if (!version) throw new NotFoundException("Version de plantilla no encontrada.");
       await tx.templateVersion.updateMany({ where: { templateId, isActive: true }, data: { isActive: false } });
       await tx.templateVersion.update({ where: { id: versionId }, data: { isActive: true } });
-      await tx.auditLog.create({ data: { userId: user.id, organizationId: user.organizationId, action: "UPDATE", entityType: "TEMPLATE_VERSION", entityId: versionId, metadata: { event: "TEMPLATE_VERSION_ACTIVATED", versionNumber: version.versionNumber } } });
+      await tx.auditLog.create({ data: { userId: user.id, action: "UPDATE", entityType: "TEMPLATE_VERSION", entityId: versionId, metadata: { event: "TEMPLATE_VERSION_ACTIVATED", versionNumber: version.versionNumber } } });
     });
     return this.findOwned(templateId, versionId, user);
   }

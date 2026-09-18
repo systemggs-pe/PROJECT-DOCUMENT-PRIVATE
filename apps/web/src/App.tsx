@@ -18,8 +18,7 @@ const FileLibrary = lazy(() => import("@/features/files/FileLibrary"));
 const GeneratePage = lazy(() => import("@/features/generation/GeneratePage"));
 const UsersPage = lazy(() => import("@/features/admin/UsersPage"));
 const RolesPage = lazy(() => import("@/features/admin/RolesPage"));
-const OrganizationsPage = lazy(() => import("@/features/admin/OrganizationsPage"));
-const OrganizationPage = lazy(() => import("@/features/admin/OrganizationPage"));
+const CompanyPage = lazy(() => import("@/features/admin/CompanyPage"));
 const SettingsPage = lazy(() => import("@/features/settings/SettingsPage"));
 
 const sections = {
@@ -48,14 +47,9 @@ const sections = {
     description: "Documentos generados.",
     icon: FileClock,
   },
-  organizations: {
-    title: "Organizaciones",
-    description: "Tenants y estado.",
-    icon: Building2,
-  },
-  organization: {
-    title: "Mi organización",
-    description: "Datos del tenant.",
+  company: {
+    title: "Empresa",
+    description: "Configuracion global.",
     icon: Building2,
   },
   users: {
@@ -103,7 +97,8 @@ export function App() {
     const syncRoute = () => {
       const path = window.location.pathname;
       setPathname(path);
-      setCurrentSection(path.startsWith("/templates") ? "templates" : path.startsWith("/generate") ? "generate" : path.startsWith("/files") ? "files" : path.startsWith("/generations") ? "generations" : path.startsWith("/organizations") ? "organizations" : path.startsWith("/organization") ? "organization" : path.startsWith("/users") ? "users" : path.startsWith("/roles") ? "roles" : path.startsWith("/audit") ? "audit" : path.startsWith("/settings") ? "settings" : "dashboard");
+      if (path.startsWith("/organizations") || path.startsWith("/organization")) window.history.replaceState(null, "", "/company");
+      setCurrentSection(path.startsWith("/templates") ? "templates" : path.startsWith("/generate") ? "generate" : path.startsWith("/files") ? "files" : path.startsWith("/generations") ? "generations" : path.startsWith("/company") || path.startsWith("/organizations") || path.startsWith("/organization") ? "company" : path.startsWith("/users") ? "users" : path.startsWith("/roles") ? "roles" : path.startsWith("/audit") ? "audit" : path.startsWith("/settings") ? "settings" : "dashboard");
     };
     syncRoute();
     window.addEventListener("popstate", syncRoute);
@@ -132,21 +127,20 @@ export function App() {
     ...(can(identity.data, "generations.read") ? { generations: sections.generations } : {}),
     ...(can(identity.data, "templates.read") ? { templates: sections.templates } : {}),
     ...(can(identity.data, "files.read") ? { files: sections.files } : {}),
-    ...(can(identity.data, "organizations.read") && identity.data?.roles.some((role) => role.key === "SUPERADMIN") ? { organizations: sections.organizations } : {}),
-    ...(can(identity.data, "organizations.read") && identity.data?.organizationId ? { organization: sections.organization } : {}),
+    ...(can(identity.data, "company.read") ? { company: sections.company } : {}),
     ...(can(identity.data, "users.read") ? { users: sections.users } : {}),
     ...(can(identity.data, "roles.read") ? { roles: sections.roles } : {}),
     ...(can(identity.data, "audit.read") ? { audit: sections.audit } : {}),
     settings: sections.settings,
   };
-  const requiredPermission = currentSection === "generate" ? "generations.create" : currentSection === "generations" ? "generations.read" : currentSection === "templates" ? "templates.read" : currentSection === "files" ? "files.read" : currentSection === "organizations" || currentSection === "organization" ? "organizations.read" : currentSection === "users" ? "users.read" : currentSection === "roles" ? "roles.read" : currentSection === "audit" ? "audit.read" : "";
+  const requiredPermission = currentSection === "generate" ? "generations.create" : currentSection === "generations" ? "generations.read" : currentSection === "templates" ? "templates.read" : currentSection === "files" ? "files.read" : currentSection === "company" ? "company.read" : currentSection === "users" ? "users.read" : currentSection === "roles" ? "roles.read" : currentSection === "audit" ? "audit.read" : "";
 
   return (
     <IdentityGate><AppShell sections={visibleSections}>
       <Suspense fallback={<p role="status">Cargando...</p>}>
       {requiredPermission && !can(identity.data, requiredPermission) ? <AccessDenied /> : currentSection === "dashboard" ? (
         <Dashboard />
-      ) : currentSection === "templates" ? <Studio /> : currentSection === "generate" ? <GeneratePage /> : currentSection === "files" ? <FileLibrary /> : currentSection === "generations" ? (pathname.startsWith("/generations/") ? <GenerationDetail /> : <History />) : currentSection === "organizations" ? <OrganizationsPage /> : currentSection === "organization" ? <OrganizationPage /> : currentSection === "users" ? <UsersPage /> : currentSection === "roles" ? <RolesPage /> : currentSection === "audit" ? <section className="empty-state"><h2>Auditoría</h2><p>Los eventos sensibles ya se registran en backend. La vista detallada queda preparada para la siguiente iteración administrativa.</p></section> : <SettingsPage />}
+      ) : currentSection === "templates" ? <Studio /> : currentSection === "generate" ? <GeneratePage /> : currentSection === "files" ? <FileLibrary /> : currentSection === "generations" ? (pathname.startsWith("/generations/") ? <GenerationDetail /> : <History />) : currentSection === "company" ? <CompanyPage /> : currentSection === "users" ? <UsersPage /> : currentSection === "roles" ? <RolesPage /> : currentSection === "audit" ? <section className="empty-state"><h2>Auditoría</h2><p>Los eventos sensibles ya se registran en backend. La vista detallada queda preparada para la siguiente iteración administrativa.</p></section> : <SettingsPage />}
       </Suspense>
     </AppShell></IdentityGate>
   );
@@ -155,3 +149,5 @@ export function App() {
 function AccessDenied() {
   return <section className="empty-state" role="alert"><h2>403 - Acceso denegado</h2><p>No tienes permisos para acceder a esta sección.</p><Button variant="ghost" onClick={() => { window.history.pushState(null, "", "/"); window.dispatchEvent(new PopStateEvent("popstate")); }}>Volver</Button></section>;
 }
+
+

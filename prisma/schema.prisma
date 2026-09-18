@@ -52,12 +52,6 @@ enum GenerationStatus {
   FAILED
 }
 
-enum OrganizationStatus {
-  ACTIVE
-  SUSPENDED
-  ARCHIVED
-}
-
 enum AuditAction {
   CREATE
   UPDATE
@@ -70,10 +64,10 @@ enum AuditAction {
 }
 
 enum AuditEntityType {
-  ORGANIZATION
   USER
   ROLE
   PERMISSION
+  COMPANY_SETTINGS
   TEMPLATE
   TEMPLATE_VERSION
   TEMPLATE_ELEMENT
@@ -82,29 +76,20 @@ enum AuditEntityType {
   STORED_FILE
 }
 
-model Organization {
-  id             String             @id @default(uuid()) @db.Uuid
+model CompanySettings {
+  id             String   @id @default("global")
   name           String
-  slug           String             @unique
-  legalName      String?            @map("legal_name")
-  documentNumber String?            @map("document_number")
+  legalName      String?  @map("legal_name")
+  documentNumber String?  @map("document_number")
   email          String?
   phone          String?
   address        String?
-  status         OrganizationStatus @default(ACTIVE)
-  createdAt      DateTime           @default(now()) @map("created_at")
-  updatedAt      DateTime           @updatedAt @map("updated_at")
+  logoUrl        String?  @map("logo_url")
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
-  users       User[]
-  roles       Role[]
-  templates   Template[]
-  generations Generation[]
-  storedFiles StoredFile[]
-  auditLogs   AuditLog[]
-
-  @@index([slug])
-  @@index([status])
-  @@map("organizations")
+  @@map("company_settings")
 }
 
 model User {
@@ -115,7 +100,6 @@ model User {
   avatarUrl      String?   @map("avatar_url")
   isActive       Boolean   @default(true) @map("is_active")
   managedById    String?   @map("managed_by_id") @db.Uuid
-  organizationId String?   @map("organization_id") @db.Uuid
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
   lastLoginAt    DateTime? @map("last_login_at")
@@ -125,14 +109,12 @@ model User {
   storedFiles StoredFile[]
   auditLogs   AuditLog[]
   userRoles   UserRole[]
-  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   managedBy   User?      @relation("ManagedUsers", fields: [managedById], references: [id], onDelete: SetNull)
   managedUsers User[]    @relation("ManagedUsers")
 
   @@index([email])
   @@index([authProviderId])
   @@index([managedById])
-  @@index([organizationId])
   @@map("users")
 }
 
@@ -143,17 +125,14 @@ model Role {
   description String?
   isSystem    Boolean   @default(false) @map("is_system")
   isActive    Boolean   @default(true) @map("is_active")
-  organizationId String? @map("organization_id") @db.Uuid
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
   userRoles       UserRole[]
   rolePermissions RolePermission[]
-  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([key])
   @@index([isActive])
-  @@index([organizationId])
   @@map("roles")
 }
 
@@ -204,18 +183,14 @@ model Template {
   description String?
   status      TemplateStatus @default(DRAFT)
   createdById String         @map("created_by_id") @db.Uuid
-  organizationId String      @map("organization_id") @db.Uuid
   createdAt   DateTime       @default(now()) @map("created_at")
   updatedAt   DateTime       @updatedAt @map("updated_at")
 
   createdBy   User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
-  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   versions    TemplateVersion[]
   generations Generation[]
 
   @@index([createdById])
-  @@index([organizationId])
-  @@index([organizationId, status])
   @@index([status])
   @@index([createdAt])
   @@map("templates")
@@ -290,18 +265,14 @@ model StoredFile {
   height       Int?
   metadata     Json           @default("{}")
   createdById  String         @map("created_by_id") @db.Uuid
-  organizationId String       @map("organization_id") @db.Uuid
   createdAt    DateTime       @default(now()) @map("created_at")
 
   createdBy           User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
-  organization        Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   generationInputs    GenerationInput[]
   generationAttachments GenerationAttachment[]
   outputForGeneration Generation?       @relation("GenerationOutputFile")
 
   @@index([createdById])
-  @@index([organizationId])
-  @@index([organizationId, type])
   @@index([type])
   @@index([createdAt])
   @@map("stored_files")
@@ -314,7 +285,6 @@ model Generation {
   templateId        String           @map("template_id") @db.Uuid
   templateVersionId String           @map("template_version_id") @db.Uuid
   createdById       String           @map("created_by_id") @db.Uuid
-  organizationId    String           @map("organization_id") @db.Uuid
   outputFileId      String?          @unique @map("output_file_id") @db.Uuid
   status            GenerationStatus @default(PENDING)
   errorMessage      String?          @map("error_message")
@@ -328,7 +298,6 @@ model Generation {
   template        Template          @relation(fields: [templateId], references: [id], onDelete: Restrict)
   templateVersion TemplateVersion   @relation(fields: [templateVersionId], references: [id], onDelete: Restrict)
   createdBy       User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
-  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   outputFile      StoredFile?       @relation("GenerationOutputFile", fields: [outputFileId], references: [id], onDelete: Restrict)
   inputs          GenerationInput[]
   attachments     GenerationAttachment[]
@@ -336,8 +305,6 @@ model Generation {
   @@index([templateId])
   @@index([templateVersionId])
   @@index([createdById])
-  @@index([organizationId])
-  @@index([organizationId, createdAt])
   @@index([createdById, createdAt])
   @@index([status])
   @@unique([createdById, requestKey])
@@ -384,7 +351,6 @@ model GenerationAttachment {
 model AuditLog {
   id         String          @id @default(uuid()) @db.Uuid
   userId     String?         @map("user_id") @db.Uuid
-  organizationId String?     @map("organization_id") @db.Uuid
   action     AuditAction
   entityType AuditEntityType @map("entity_type")
   entityId   String?         @map("entity_id") @db.Uuid
@@ -392,10 +358,8 @@ model AuditLog {
   createdAt  DateTime        @default(now()) @map("created_at")
 
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
-  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
   @@index([userId])
-  @@index([organizationId])
   @@index([entityType, entityId])
   @@index([createdAt])
   @@map("audit_logs")

@@ -34,9 +34,10 @@ function authorization(isSuperAdmin: boolean) {
 
 function actor(id: string, roleKeys: string[]): CurrentUser {
   const roles = roleKeys.map((key) => ({ id: key, key, name: key, isSystem: true }));
-  return { id, authProviderId: id, email: `${id}@example.com`, name: null, avatarUrl: null, isActive: true, status: "ACTIVE", organizationId: "org-a", organization: { id: "org-a", name: "Org A", slug: "org-a", status: "ACTIVE" }, roles, permissions: [], authorization: { roles, permissions: [] } };
+  return { id, authProviderId: id, email: `${id}@example.com`, name: null, avatarUrl: null, isActive: true, status: "ACTIVE", roles, permissions: [], authorization: { roles, permissions: [] } };
 }
 
 function target(id: string, roleKeys: string[]) {
   return { id, isActive: true, userRoles: roleKeys.map((key) => ({ role: { id: key, key, name: key, isSystem: true } })) };
 }
+

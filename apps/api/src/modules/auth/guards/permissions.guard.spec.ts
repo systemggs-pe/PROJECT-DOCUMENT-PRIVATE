@@ -55,9 +55,10 @@ function context(currentUser: ReturnType<typeof user>) {
 
 function user(permissions: PermissionKey[], roleKeys: string[]) {
   const roles = roleKeys.map((key) => ({ id: key, key, name: key, isSystem: true }));
-  return { id: "user-id", authProviderId: "auth-id", email: "user@example.com", name: null, avatarUrl: null, isActive: true, status: "ACTIVE" as const, organizationId: "organization-id", organization: { id: "organization-id", name: "Test organization", slug: "test-organization", status: "ACTIVE" as const }, roles, permissions, authorization: { roles, permissions } };
+  return { id: "user-id", authProviderId: "auth-id", email: "user@example.com", name: null, avatarUrl: null, isActive: true, status: "ACTIVE" as const, roles, permissions, authorization: { roles, permissions } };
 }
 
 function userRoles(snapshot: unknown) {
   return (snapshot as { roles: Array<{ key: string }> }).roles.map((role) => role.key);
 }
+

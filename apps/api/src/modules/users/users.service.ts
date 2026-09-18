@@ -4,7 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../../common/database/prisma.service";
 import { SYSTEM_ROLES } from "../auth/authorization.constants";
 import { AuthorizationService } from "../auth/services/authorization.service";
-import { isAdmin, isSuperAdmin, requireTenant } from "../auth/tenant-context";
+import { isAdmin, isSuperAdmin } from "../auth/access-scope";
 import type { CurrentUser } from "../auth/types/current-user";
 import { parseCreateUser, parseRoleAssignment, parseUpdateUser, parseUserQuery } from "./dto";
 
@@ -41,20 +41,18 @@ export class UsersService {
     const input = parseCreateUser(body);
     const created = await this.prisma.client.$transaction(async (tx) => {
       const roleIds = await this.filterAssignableRoleIds(tx, actor, input.roleIds);
-      const organizationId = await this.resolveTargetOrganizationId(tx, actor, input.organizationId);
       const data: Prisma.UserCreateInput = {
         email: input.email.toLowerCase(),
         name: input.name ?? null,
         avatarUrl: input.avatarUrl ?? null,
         isActive: input.isActive,
       };
-      if (organizationId) data.organization = { connect: { id: organizationId } };
       if (isAdmin(actor)) data.managedBy = { connect: { id: actor.id } };
       if (roleIds.length > 0) data.userRoles = { createMany: { data: roleIds.map((roleId) => ({ roleId })), skipDuplicates: true } };
       const user = await tx.user.create({
         data,
       });
-      await tx.auditLog.create({ data: { userId: actor.id, organizationId: user.organizationId, action: "CREATE", entityType: "USER", entityId: user.id, metadata: { event: "USER_CREATED", roleCount: roleIds.length } } });
+      await tx.auditLog.create({ data: { userId: actor.id, action: "CREATE", entityType: "USER", entityId: user.id, metadata: { event: "USER_CREATED", roleCount: roleIds.length } } });
       return user;
     });
     return this.findOne(actor, created.id);
@@ -68,13 +66,9 @@ export class UsersService {
     if (input.name !== undefined) data.name = input.name;
     if (input.avatarUrl !== undefined) data.avatarUrl = input.avatarUrl;
     if (input.isActive !== undefined) data.isActive = input.isActive;
-    if (input.organizationId !== undefined) {
-      if (!isSuperAdmin(actor)) throw new ForbiddenException("No puedes modificar organizationId.");
-      data.organization = { connect: { id: input.organizationId } };
-    }
     await this.prisma.client.$transaction(async (tx) => {
       await tx.user.update({ where: { id }, data });
-      await tx.auditLog.create({ data: { userId: actor.id, organizationId: target.organizationId, action: "UPDATE", entityType: "USER", entityId: id, metadata: { event: "USER_UPDATED", fields: Object.keys(input) } } });
+      await tx.auditLog.create({ data: { userId: actor.id, action: "UPDATE", entityType: "USER", entityId: id, metadata: { event: "USER_UPDATED", fields: Object.keys(input) } } });
     });
     return this.findOne(actor, id);
   }
@@ -98,7 +92,7 @@ export class UsersService {
       const before = await tx.userRole.findMany({ where: { userId: id }, select: { roleId: true } });
       await tx.userRole.deleteMany({ where: { userId: id } });
       await tx.userRole.createMany({ data: roleIds.map((roleId) => ({ userId: id, roleId })), skipDuplicates: true });
-      await tx.auditLog.create({ data: { userId: actor.id, organizationId: target.organizationId, action: "ASSIGN", entityType: "ROLE", entityId: id, metadata: { event: "ROLE_ASSIGNMENT_REPLACED", before: before.map((item) => item.roleId), after: roleIds } } });
+      await tx.auditLog.create({ data: { userId: actor.id, action: "ASSIGN", entityType: "ROLE", entityId: id, metadata: { event: "ROLE_ASSIGNMENT_REPLACED", before: before.map((item) => item.roleId), after: roleIds } } });
     });
     return this.findOne(actor, id);
   }
@@ -108,7 +102,7 @@ export class UsersService {
     assertCanChangeUser(actor, target, isActive);
     await this.prisma.client.$transaction(async (tx) => {
       await tx.user.update({ where: { id }, data: { isActive } });
-      await tx.auditLog.create({ data: { userId: actor.id, organizationId: target.organizationId, action: "UPDATE", entityType: "USER", entityId: id, metadata: { event: isActive ? "USER_ACTIVATED" : "USER_DEACTIVATED" } } });
+      await tx.auditLog.create({ data: { userId: actor.id, action: "UPDATE", entityType: "USER", entityId: id, metadata: { event: isActive ? "USER_ACTIVATED" : "USER_DEACTIVATED" } } });
     });
     return this.findOne(actor, id);
   }
@@ -124,7 +118,7 @@ export class UsersService {
       where: {
         id: { in: roleIds },
         isActive: true,
-        ...(isSuperAdmin(actor) ? {} : { OR: [{ isSystem: true, organizationId: null }, { organizationId: requireTenant(actor) }] }),
+        ...(isSuperAdmin(actor) ? {} : { isSystem: true }),
       },
       select: { id: true, key: true },
     });
@@ -135,24 +129,14 @@ export class UsersService {
     return roles.map((role) => role.id);
   }
 
-  private async resolveTargetOrganizationId(tx: Prisma.TransactionClient, actor: CurrentUser, requestedOrganizationId?: string) {
-    if (isSuperAdmin(actor)) {
-      if (!requestedOrganizationId) return null;
-      const organization = await tx.organization.findFirst({ where: { id: requestedOrganizationId, status: { not: "ARCHIVED" } }, select: { id: true } });
-      if (!organization) throw new NotFoundException("Organizacion no encontrada.");
-      return organization.id;
-    }
-    return requireTenant(actor);
-  }
 }
 
-const userInclude = { organization: { select: { id: true, name: true, slug: true, status: true } }, userRoles: { include: { role: { select: { id: true, key: true, name: true, isSystem: true } } } } } as const;
+const userInclude = { userRoles: { include: { role: { select: { id: true, key: true, name: true, isSystem: true } } } } } as const;
 
 function scopeWhere(actor: CurrentUser): Prisma.UserWhereInput {
   if (isSuperAdmin(actor)) return {};
-  const organizationId = requireTenant(actor);
-  if (isAdmin(actor)) return { organizationId };
-  return { id: actor.id, organizationId };
+  if (isAdmin(actor)) return {};
+  return { id: actor.id };
 }
 
 function serializeUser<T extends { userRoles: Array<{ role: { id: string; key: string; name: string; isSystem: boolean } }>; isActive: boolean }>(user: T) {

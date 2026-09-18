@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 
 import { PrismaService } from "../../common/database/prisma.service";
 import { PERMISSION_GROUP_LABELS, SYSTEM_ROLES } from "../auth/authorization.constants";
-import { isSuperAdmin, requireTenant } from "../auth/tenant-context";
+import { isSuperAdmin } from "../auth/access-scope";
 import type { CurrentUser } from "../auth/types/current-user";
 import { parseRoleInput, parseRoleQuery, parseRoleUpdate } from "./dto";
 
@@ -36,7 +36,6 @@ export class RolesService {
     const input = parseRoleInput(body);
     const key = input.key ?? toRoleKey(input.name);
     assertNoProtectedSuperadminChange(actor, key, false);
-    const organizationId = isSuperAdmin(actor) ? null : requireTenant(actor);
     const role = await this.prisma.client.$transaction(async (tx) => {
       const permissionIds = await this.resolvePermissionIds(tx, input.permissionIds);
       const data: Prisma.RoleCreateInput = {
@@ -46,12 +45,11 @@ export class RolesService {
         isSystem: false,
         isActive: input.isActive,
       };
-      if (organizationId) data.organization = { connect: { id: organizationId } };
       if (permissionIds.length > 0) data.rolePermissions = { createMany: { data: permissionIds.map((permissionId) => ({ permissionId })), skipDuplicates: true } };
       const created = await tx.role.create({
         data,
       });
-      await tx.auditLog.create({ data: { userId: actor.id, organizationId, action: "CREATE", entityType: "ROLE", entityId: created.id, metadata: { event: "ROLE_CREATED", key } } });
+      await tx.auditLog.create({ data: { userId: actor.id, action: "CREATE", entityType: "ROLE", entityId: created.id, metadata: { event: "ROLE_CREATED", key } } });
       return created;
     });
     return this.findOne(actor, role.id);
@@ -78,7 +76,7 @@ export class RolesService {
         await tx.rolePermission.deleteMany({ where: { roleId: id } });
         await tx.rolePermission.createMany({ data: permissionIds.map((permissionId) => ({ roleId: id, permissionId })), skipDuplicates: true });
       }
-      await tx.auditLog.create({ data: { userId: actor.id, organizationId: current.organizationId, action: "UPDATE", entityType: "ROLE", entityId: id, metadata: { event: "ROLE_UPDATED", permissionIdsChanged: Boolean(input.permissionIds) } } });
+      await tx.auditLog.create({ data: { userId: actor.id, action: "UPDATE", entityType: "ROLE", entityId: id, metadata: { event: "ROLE_UPDATED", permissionIdsChanged: Boolean(input.permissionIds) } } });
     });
     return this.findOne(actor, id);
   }
@@ -91,7 +89,7 @@ export class RolesService {
     if (role._count.userRoles > 0) throw new ConflictException("No se puede eliminar un rol asignado a usuarios.");
     await this.prisma.client.$transaction(async (tx) => {
       await tx.role.delete({ where: { id } });
-      await tx.auditLog.create({ data: { userId: actor.id, organizationId: role.organizationId, action: "DELETE", entityType: "ROLE", entityId: id, metadata: { event: "ROLE_DELETED", key: role.key } } });
+      await tx.auditLog.create({ data: { userId: actor.id, action: "DELETE", entityType: "ROLE", entityId: id, metadata: { event: "ROLE_DELETED", key: role.key } } });
     });
     return { deleted: true, id };
   }
@@ -113,7 +111,7 @@ export class RolesService {
 
 function roleScope(actor: CurrentUser): Prisma.RoleWhereInput {
   if (isSuperAdmin(actor)) return {};
-  return { OR: [{ isSystem: true, organizationId: null }, { organizationId: requireTenant(actor) }] };
+  return { isSystem: true };
 }
 
 const roleInclude = {

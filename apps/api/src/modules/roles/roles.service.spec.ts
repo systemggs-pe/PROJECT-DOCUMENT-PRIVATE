@@ -17,7 +17,7 @@ describe("RolesService RBAC protections", () => {
   });
 
   it("rejects deleting an assigned custom role", async () => {
-    const service = new RolesService(prisma({ role: { findFirst: vi.fn().mockResolvedValue({ id: "role-editor", key: "EDITOR", isSystem: false, organizationId: null, _count: { userRoles: 1 } }) } }));
+    const service = new RolesService(prisma({ role: { findFirst: vi.fn().mockResolvedValue({ id: "role-editor", key: "EDITOR", isSystem: false, _count: { userRoles: 1 } }) } }));
     await expect(service.remove(actor("super-id", ["SUPERADMIN"]), "role-editor")).rejects.toBeInstanceOf(ConflictException);
   });
 });
@@ -28,5 +28,6 @@ function prisma(client: unknown) {
 
 function actor(id: string, roleKeys: string[]): CurrentUser {
   const roles = roleKeys.map((key) => ({ id: key, key, name: key, isSystem: true }));
-  return { id, authProviderId: id, email: `${id}@example.com`, name: null, avatarUrl: null, isActive: true, status: "ACTIVE", organizationId: "org-a", organization: { id: "org-a", name: "Org A", slug: "org-a", status: "ACTIVE" }, roles, permissions: [], authorization: { roles, permissions: [] } };
+  return { id, authProviderId: id, email: `${id}@example.com`, name: null, avatarUrl: null, isActive: true, status: "ACTIVE", roles, permissions: [], authorization: { roles, permissions: [] } };
 }
+

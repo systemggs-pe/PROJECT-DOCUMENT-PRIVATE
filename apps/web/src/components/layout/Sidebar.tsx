@@ -22,7 +22,7 @@ interface SidebarProps {
   >>;
 }
 
-const sectionOrder: NavigationSection[] = ["dashboard", "generate", "generations", "templates", "files", "organizations", "organization", "users", "roles", "audit", "settings"];
+const sectionOrder: NavigationSection[] = ["dashboard", "generate", "generations", "templates", "files", "company", "users", "roles", "audit", "settings"];
 
 export function Sidebar({ sections, isMobile = false, onClose, onNavigate }: SidebarProps) {
   const queryClient = useQueryClient();
@@ -74,7 +74,7 @@ export function Sidebar({ sections, isMobile = false, onClose, onNavigate }: Sid
                 aria-current={isActive ? "page" : undefined}
                 onClick={() => {
                   setCurrentSection(key);
-                  const path = key === "templates" ? "/templates" : key === "generate" ? "/generate" : key === "files" ? "/files" : key === "generations" ? "/generations" : key === "organizations" ? "/organizations" : key === "organization" ? "/organization" : key === "users" ? "/users" : key === "roles" ? "/roles" : key === "audit" ? "/audit" : key === "settings" ? "/settings" : "/";
+                  const path = key === "templates" ? "/templates" : key === "generate" ? "/generate" : key === "files" ? "/files" : key === "generations" ? "/generations" : key === "company" ? "/company" : key === "users" ? "/users" : key === "roles" ? "/roles" : key === "audit" ? "/audit" : key === "settings" ? "/settings" : "/";
                   if (window.location.pathname !== path) window.history.pushState(null, "", path);
                   onNavigate?.();
                 }}

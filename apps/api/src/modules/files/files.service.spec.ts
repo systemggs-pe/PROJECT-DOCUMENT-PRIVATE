@@ -11,8 +11,6 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
 const pdf = Buffer.from("%PDF-1.7\n%test\n");
 const doc = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0x00, 0x00]);
 const docx = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00]);
-const organizationId = "22222222-2222-4222-8222-222222222222";
-
 describe("FilesService", () => {
   it("uploads a validated image through backend-owned storage paths", async () => {
     const tx = {
@@ -31,8 +29,8 @@ describe("FilesService", () => {
 
     const uploaded = await service.upload(user, { buffer: png, originalname: "DNI frontal.png", mimetype: "image/png" });
 
-    expect(uploaded).toMatchObject({ originalName: "DNI frontal.png", mimeType: "image/jpeg", type: "IMAGE", sizeBytes: expect.any(String), createdById: userId, organizationId });
-    expect(uploaded.storageKey).toMatch(new RegExp(`^organizations/${organizationId}/files/[0-9a-f-]{36}/original\\.jpg$`));
+    expect(uploaded).toMatchObject({ originalName: "DNI frontal.png", mimeType: "image/jpeg", type: "IMAGE", sizeBytes: expect.any(String), createdById: userId });
+    expect(uploaded.storageKey).toMatch(/^company\/files\/[0-9a-f-]{36}\/original\.jpg$/);
     expect(storage.put).toHaveBeenCalledWith(uploaded.storageKey, expect.any(Buffer), "image/jpeg");
     expect(tx.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: "CREATE", entityType: "STORED_FILE" }) }));
   });
@@ -88,7 +86,7 @@ describe("FilesService", () => {
     const service = new FilesService(prisma, storage);
 
     await expect(service.upload(actor(randomUUID()), { buffer: png, originalname: "foto.png", mimetype: "image/png" })).rejects.toThrow("db down");
-    expect(storage.remove).toHaveBeenCalledWith(expect.stringMatching(/^organizations\/.+\/files\/.+\/original\.jpg$/));
+    expect(storage.remove).toHaveBeenCalledWith(expect.stringMatching(/^company\/files\/.+\/original\.jpg$/));
   });
 
   it("lists files through current-user ownership and paginated filters", async () => {
@@ -106,14 +104,14 @@ describe("FilesService", () => {
     await expect(service.findOwnedOrThrow("file-b", actor("user-a"))).rejects.toBeInstanceOf(NotFoundException);
 
     expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { organizationId, createdById: "user-a", type: "IMAGE", originalName: { contains: "foto", mode: "insensitive" } },
+      where: { createdById: "user-a", type: "IMAGE", originalName: { contains: "foto", mode: "insensitive" } },
       skip: 10,
       take: 10,
     }));
   });
 
   it("generates signed URLs and deletes only unused owned images", async () => {
-    const file = { id: "file-a", createdById: "user-a", organizationId, type: "IMAGE", storageKey: `organizations/${organizationId}/files/file-a/original.jpg`, bucket: "ggs-documents", mimeType: "image/jpeg", sizeBytes: 12n };
+    const file = { id: "file-a", createdById: "user-a", type: "IMAGE", storageKey: "company/files/file-a/original.jpg", bucket: "ggs-documents", mimeType: "image/jpeg", sizeBytes: 12n };
     const tx = { storedFile: { delete: vi.fn() }, auditLog: { create: vi.fn() } };
     const prisma = {
       client: {
@@ -135,7 +133,7 @@ describe("FilesService", () => {
   });
 
   it("rejects deleting files referenced by historical generation inputs", async () => {
-    const file = { id: "file-a", createdById: "user-a", organizationId, type: "IMAGE", storageKey: `organizations/${organizationId}/files/file-a/original.jpg`, bucket: "ggs-documents", mimeType: "image/jpeg", sizeBytes: 12n };
+    const file = { id: "file-a", createdById: "user-a", type: "IMAGE", storageKey: "company/files/file-a/original.jpg", bucket: "ggs-documents", mimeType: "image/jpeg", sizeBytes: 12n };
     const service = new FilesService({
       client: {
         storedFile: { findFirst: vi.fn().mockResolvedValue(file) },
@@ -152,7 +150,7 @@ describe("FilesService", () => {
 
 function actor(id: string): CurrentUser {
   const roles = [{ id: "USER", key: "USER", name: "Usuario", isSystem: true }];
-  return { id, authProviderId: id, email: `${id}@example.com`, name: null, avatarUrl: null, isActive: true, status: "ACTIVE", organizationId, organization: { id: organizationId, name: "Org A", slug: "org-a", status: "ACTIVE" }, roles, permissions: [], authorization: { roles, permissions: [] } };
+  return { id, authProviderId: id, email: `${id}@example.com`, name: null, avatarUrl: null, isActive: true, status: "ACTIVE", roles, permissions: [], authorization: { roles, permissions: [] } };
 }
 
 function fakeStorage() {
@@ -165,3 +163,5 @@ function fakeStorage() {
     sign: vi.fn().mockResolvedValue("https://signed.local/file"),
   } as unknown as StorageService;
 }
+
+

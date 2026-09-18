@@ -4,7 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { PrismaService } from "../../common/database/prisma.service";
-import { requireTenant, resourceScope } from "../auth/tenant-context";
+import { resourceScope } from "../auth/access-scope";
 import type { CurrentUser } from "../auth/types/current-user";
 import {
   parseTemplateInput,
@@ -35,23 +35,21 @@ export class TemplatesService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async create(user: CurrentUser, body: unknown) {
-    const organizationId = requireTenant(user);
     const versionInput = this.hasVersionPayload(body) ? parseTemplateInput(body) : null;
     const metadata: TemplateMetadataInput = versionInput ? { name: versionInput.name, description: versionInput.description } : parseTemplateMetadata(body);
     const version = versionInput ?? emptyVersion;
     const templateId = randomUUID();
 
     await this.prisma.client.$transaction(async (tx) => {
-      await tx.template.create({ data: { id: templateId, name: metadata.name, description: metadata.description, status: "ACTIVE", createdById: user.id, organizationId } });
+      await tx.template.create({ data: { id: templateId, name: metadata.name, description: metadata.description, status: "ACTIVE", createdById: user.id } });
       await tx.templateVersion.create({ data: versionData(templateId, version, true) });
-      await tx.auditLog.create({ data: { userId: user.id, organizationId, action: "CREATE", entityType: "TEMPLATE", entityId: templateId, metadata: { event: "TEMPLATE_CREATED", versionNumber: 1 } } });
+      await tx.auditLog.create({ data: { userId: user.id, action: "CREATE", entityType: "TEMPLATE", entityId: templateId, metadata: { event: "TEMPLATE_CREATED", versionNumber: 1 } } });
     });
     return this.findOwnedOrThrow(templateId, user);
   }
 
   async save(user: CurrentUser, body: unknown, id?: string) {
     const input = parseTemplateInput(body);
-    const organizationId = requireTenant(user);
     const templateId = id ?? randomUUID();
     await this.prisma.client.$transaction(async (tx) => {
       if (id) {
@@ -60,24 +58,23 @@ export class TemplatesService {
         if (!current) throw new NotFoundException("Plantilla no encontrada.");
         if (input.expectedVersion !== current.versions[0]?.versionNumber) throw new ConflictException("La plantilla cambio. Recarga antes de guardar.");
       } else {
-        await tx.template.create({ data: { id: templateId, name: input.name, description: input.description, createdById: user.id, organizationId } });
+        await tx.template.create({ data: { id: templateId, name: input.name, description: input.description, createdById: user.id } });
       }
       const latest = await tx.templateVersion.aggregate({ where: { templateId }, _max: { versionNumber: true } });
       await tx.templateVersion.updateMany({ where: { templateId, isActive: true }, data: { isActive: false } });
       await tx.templateVersion.create({ data: { ...versionData(templateId, input, true), versionNumber: (latest._max.versionNumber ?? 0) + 1 } });
       await tx.template.update({ where: { id: templateId }, data: { name: input.name, description: input.description, status: "ACTIVE" } });
-      await tx.auditLog.create({ data: { userId: user.id, organizationId, action: id ? "UPDATE" : "CREATE", entityType: id ? "TEMPLATE_VERSION" : "TEMPLATE", entityId: templateId, metadata: { event: id ? "TEMPLATE_VERSION_CREATED" : "TEMPLATE_CREATED", versionNumber: (latest._max.versionNumber ?? 0) + 1 } } });
+      await tx.auditLog.create({ data: { userId: user.id, action: id ? "UPDATE" : "CREATE", entityType: id ? "TEMPLATE_VERSION" : "TEMPLATE", entityId: templateId, metadata: { event: id ? "TEMPLATE_VERSION_CREATED" : "TEMPLATE_CREATED", versionNumber: (latest._max.versionNumber ?? 0) + 1 } } });
     });
     return this.findOwnedOrThrow(templateId, user);
   }
 
   async updateMetadata(id: string, user: CurrentUser, body: unknown) {
     const input = parseTemplateMetadata(body);
-    const organizationId = requireTenant(user);
     await this.prisma.client.$transaction(async (tx) => {
       await this.lockOwnedTemplate(tx, id, user);
       await tx.template.update({ where: { id }, data: input });
-      await tx.auditLog.create({ data: { userId: user.id, organizationId, action: "UPDATE", entityType: "TEMPLATE", entityId: id, metadata: { event: "TEMPLATE_UPDATED" } } });
+      await tx.auditLog.create({ data: { userId: user.id, action: "UPDATE", entityType: "TEMPLATE", entityId: id, metadata: { event: "TEMPLATE_UPDATED" } } });
     });
     return this.findOwnedOrThrow(id, user);
   }
@@ -114,11 +111,10 @@ export class TemplatesService {
   }
 
   private async changeStatus(id: string, user: CurrentUser, status: "ACTIVE" | "ARCHIVED", event: string) {
-    const organizationId = requireTenant(user);
     await this.prisma.client.$transaction(async (tx) => {
       await this.lockOwnedTemplate(tx, id, user);
       await tx.template.update({ where: { id }, data: { status } });
-      await tx.auditLog.create({ data: { userId: user.id, organizationId, action: "UPDATE", entityType: "TEMPLATE", entityId: id, metadata: { event, status } } });
+      await tx.auditLog.create({ data: { userId: user.id, action: "UPDATE", entityType: "TEMPLATE", entityId: id, metadata: { event, status } } });
     });
   }
 

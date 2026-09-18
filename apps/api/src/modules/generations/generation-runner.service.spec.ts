@@ -12,7 +12,7 @@ import type { DocumentConversionService } from "../document-conversion/document-
 import { GenerationRunnerService } from "./generation-runner.service";
 
 const userId = "11111111-1111-4111-8111-111111111111";
-const organizationId = "00000000-0000-4000-8000-000000000201";
+const companyId = "00000000-0000-4000-8000-000000000201";
 const templateId = "22222222-2222-4222-8222-222222222222";
 const versionId = "33333333-3333-4333-8333-333333333333";
 const imageId = "44444444-4444-4444-8444-444444444444";
@@ -71,7 +71,7 @@ describe("GenerationRunnerService", () => {
       inputs: [{ key: "photo", fileId: imageId }],
     })).rejects.toThrow("No se pudo generar el documento");
 
-    expect(storage.remove).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`^organizations/${organizationId}/generations/`)));
+    expect(storage.remove).toHaveBeenCalledWith(expect.stringMatching(/^company\/generations\//));
     expect(tx.generation.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "FAILED" }) }));
   });
 
@@ -82,7 +82,7 @@ describe("GenerationRunnerService", () => {
     const tx = makeTransaction({
       generation: { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", number: "GGS-000044" },
       renderVersion: version(),
-      attachmentFiles: [{ id: attachmentId, storageKey: `organizations/${organizationId}/files/${attachmentId}/original.pdf`, bucket: "ggs-documents", mimeType: "application/pdf", originalName: "anexo.pdf" }],
+      attachmentFiles: [{ id: attachmentId, storageKey: `organizations/${companyId}/files/${attachmentId}/original.pdf`, bucket: "ggs-documents", mimeType: "application/pdf", originalName: "anexo.pdf" }],
     });
     const storage = makeStorage();
     storage.read.mockResolvedValueOnce(Buffer.from("image")).mockResolvedValueOnce(attachmentPdf);
@@ -112,9 +112,9 @@ describe("GenerationRunnerService", () => {
       generation: { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", number: "GGS-000045" },
       renderVersion: version(),
       attachmentFiles: [
-        { id: attachmentId, storageKey: `organizations/${organizationId}/files/${attachmentId}/original.pdf`, bucket: "ggs-documents", type: "PDF", mimeType: "application/pdf", originalName: "anexo-1.pdf" },
-        { id: documentId, storageKey: `organizations/${organizationId}/files/${documentId}/original.docx`, bucket: "ggs-documents", type: "DOCUMENT", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", originalName: "contrato.docx" },
-        { id: "ffffffff-ffff-4fff-8fff-ffffffffffff", storageKey: `organizations/${organizationId}/files/ffffffff-ffff-4fff-8fff-ffffffffffff/original.pdf`, bucket: "ggs-documents", type: "PDF", mimeType: "application/pdf", originalName: "anexo-2.pdf" },
+        { id: attachmentId, storageKey: `organizations/${companyId}/files/${attachmentId}/original.pdf`, bucket: "ggs-documents", type: "PDF", mimeType: "application/pdf", originalName: "anexo-1.pdf" },
+        { id: documentId, storageKey: `organizations/${companyId}/files/${documentId}/original.docx`, bucket: "ggs-documents", type: "DOCUMENT", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", originalName: "contrato.docx" },
+        { id: "ffffffff-ffff-4fff-8fff-ffffffffffff", storageKey: `organizations/${companyId}/files/ffffffff-ffff-4fff-8fff-ffffffffffff/original.pdf`, bucket: "ggs-documents", type: "PDF", mimeType: "application/pdf", originalName: "anexo-2.pdf" },
       ],
     });
     const storage = makeStorage();
@@ -161,7 +161,7 @@ function makeTransaction({ generation, renderVersion, attachmentFiles = [] }: { 
     },
     templateVersion: { findFirst: vi.fn().mockResolvedValue(renderVersion) },
     storedFile: {
-      findMany: vi.fn(({ where }) => Promise.resolve(where.type === "PDF" || where.type?.in ? attachmentFiles.map((file) => ({ type: "PDF", ...file })) : [{ id: imageId, storageKey: `organizations/${organizationId}/files/${imageId}/original.jpg`, bucket: "ggs-documents", type: "IMAGE", mimeType: "image/jpeg", originalName: "photo.jpg" }])),
+      findMany: vi.fn(({ where }) => Promise.resolve(where.type === "PDF" || where.type?.in ? attachmentFiles.map((file) => ({ type: "PDF", ...file })) : [{ id: imageId, storageKey: `organizations/${companyId}/files/${imageId}/original.jpg`, bucket: "ggs-documents", type: "IMAGE", mimeType: "image/jpeg", originalName: "photo.jpg" }])),
       create: vi.fn().mockResolvedValue({ id: "output-file" }),
     },
     auditLog: { create: vi.fn().mockResolvedValue({}) },
@@ -178,7 +178,7 @@ async function makePdf(label: string) {
 
 function actor(id: string): CurrentUser {
   const roles = [{ id: "USER", key: "USER", name: "Usuario", isSystem: true }];
-  return { id, authProviderId: id, email: `${id}@example.com`, name: null, avatarUrl: null, isActive: true, status: "ACTIVE", organizationId, organization: { id: organizationId, name: "Org Demo", slug: "demo-organization", status: "ACTIVE" }, roles, permissions: [], authorization: { roles, permissions: [] } };
+  return { id, authProviderId: id, email: `${id}@example.com`, name: null, avatarUrl: null, isActive: true, status: "ACTIVE", roles, permissions: [], authorization: { roles, permissions: [] } };
 }
 
 function version() {
@@ -198,3 +198,6 @@ function version() {
     template: { id: templateId, name: "DNI" },
   };
 }
+
+
+

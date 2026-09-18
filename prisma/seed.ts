@@ -14,7 +14,7 @@ const prisma = new PrismaClient({
 
 const permissions = [
   "users.read", "users.create", "users.update", "users.deactivate",
-  "organizations.read", "organizations.create", "organizations.update", "organizations.suspend",
+  "company.read", "company.update",
   "roles.read", "roles.create", "roles.update", "roles.delete",
   "permissions.read", "permissions.assign",
   "templates.read", "templates.create", "templates.update", "templates.delete",
@@ -28,7 +28,7 @@ const rolePermissionMap = {
   SUPERADMIN: permissions,
   ADMIN: [
     "users.read", "users.create", "users.update", "users.deactivate",
-    "organizations.read",
+    "company.read", "company.update",
     "roles.read", "roles.create", "roles.update",
     "permissions.read", "permissions.assign",
     "templates.read", "templates.create", "templates.update", "templates.delete",
@@ -47,19 +47,16 @@ const rolePermissionMap = {
 type RoleKey = keyof typeof rolePermissionMap;
 
 async function main(): Promise<void> {
-  const organization = await prisma.organization.upsert({
-    where: { slug: "demo-organization" },
+  await prisma.companySettings.upsert({
+    where: { id: "global" },
     update: {
-      name: "Organization Demo",
+      name: "GGS Document Studio",
       legalName: "GGS Demo",
-      status: "ACTIVE",
     },
     create: {
-      id: "00000000-0000-4000-8000-000000000201",
-      name: "Organization Demo",
-      slug: "demo-organization",
+      id: "global",
+      name: "GGS Document Studio",
       legalName: "GGS Demo",
-      status: "ACTIVE",
     },
   });
 
@@ -91,13 +88,11 @@ async function main(): Promise<void> {
     update: {
       name: "Demo User",
       isActive: true,
-      organizationId: organization.id,
     },
     create: {
       email: "demo@ggs.local",
       authProviderId: "demo-local-user",
       name: "Demo User",
-      organizationId: organization.id,
     },
   });
 
@@ -115,7 +110,6 @@ async function main(): Promise<void> {
       name: "DNI + Foto",
       description: "Plantilla demo para comprobar image slots dinamicos.",
       status: "ACTIVE",
-      organizationId: organization.id,
     },
     create: {
       id: "00000000-0000-4000-8000-000000000101",
@@ -123,7 +117,6 @@ async function main(): Promise<void> {
       description: "Plantilla demo para comprobar image slots dinamicos.",
       status: "ACTIVE",
       createdById: demoUser.id,
-      organizationId: organization.id,
     },
   });
 

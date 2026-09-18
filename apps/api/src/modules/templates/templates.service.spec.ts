@@ -14,8 +14,8 @@ describe("TemplatesService", () => {
 
     await expect(service.listOwned(actor("user-a"))).resolves.toMatchObject({ items: [], page: 1, pageSize: 20, total: 0, totalPages: 0 });
 
-    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { organizationId: "org-a", createdById: "user-a" } }));
-    expect(count).toHaveBeenCalledWith({ where: { organizationId: "org-a", createdById: "user-a" } });
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { createdById: "user-a" } }));
+    expect(count).toHaveBeenCalledWith({ where: { createdById: "user-a" } });
     expect(transaction).toHaveBeenCalledOnce();
   });
 
@@ -31,11 +31,13 @@ describe("TemplatesService", () => {
     const service = new TemplatesService({ client: { template: { findFirst } } } as unknown as PrismaService);
 
     await expect(service.findOwnedOrThrow("template-b", actor("user-a"))).rejects.toBeInstanceOf(NotFoundException);
-    expect(findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "template-b", organizationId: "org-a", createdById: "user-a" } }));
+    expect(findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "template-b", createdById: "user-a" } }));
   });
 });
 
 function actor(id: string): CurrentUser {
   const roles = [{ id: "USER", key: "USER", name: "Usuario", isSystem: true }];
-  return { id, authProviderId: id, email: `${id}@example.com`, name: null, avatarUrl: null, isActive: true, status: "ACTIVE", organizationId: "org-a", organization: { id: "org-a", name: "Org A", slug: "org-a", status: "ACTIVE" }, roles, permissions: [], authorization: { roles, permissions: [] } };
+  return { id, authProviderId: id, email: `${id}@example.com`, name: null, avatarUrl: null, isActive: true, status: "ACTIVE", roles, permissions: [], authorization: { roles, permissions: [] } };
 }
+
+

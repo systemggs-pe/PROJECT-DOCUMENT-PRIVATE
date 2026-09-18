@@ -3,13 +3,12 @@ import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { PrismaService } from "../../common/database/prisma.service";
-import { tenantScope } from "../auth/tenant-context";
 import type { CurrentUser } from "../auth/types/current-user";
 
 const auditQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(10000).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(30),
-  entityType: z.enum(["USER", "ROLE", "PERMISSION", "TEMPLATE", "TEMPLATE_VERSION", "TEMPLATE_ELEMENT", "GENERATION", "GENERATION_INPUT", "STORED_FILE"]).optional(),
+  entityType: z.enum(["USER", "ROLE", "PERMISSION", "COMPANY_SETTINGS", "TEMPLATE", "TEMPLATE_VERSION", "TEMPLATE_ELEMENT", "GENERATION", "GENERATION_INPUT", "STORED_FILE"]).optional(),
   action: z.enum(["CREATE", "UPDATE", "DELETE", "DOWNLOAD", "GENERATE", "LOGIN", "ASSIGN", "REMOVE"]).optional(),
 }).strict();
 
@@ -22,7 +21,6 @@ export class AuditService {
     if (!parsed.success) throw new BadRequestException("Los filtros de auditoria no son validos.");
     const query = parsed.data;
     const where: Prisma.AuditLogWhereInput = {
-      ...tenantScope(user),
       ...(query.action ? { action: query.action } : {}),
       ...(query.entityType ? { entityType: query.entityType } : {}),
     };

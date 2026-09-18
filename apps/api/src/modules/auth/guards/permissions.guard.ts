@@ -6,7 +6,6 @@ import { IS_PUBLIC_KEY } from "../decorators/public.decorator";
 import { PERMISSIONS_KEY } from "../decorators/permissions.decorator";
 import { ROLES_KEY } from "../decorators/roles.decorator";
 import { AuthorizationService } from "../services/authorization.service";
-import { isSuperAdmin } from "../tenant-context";
 import type { AuthenticatedRequest } from "../types/current-user";
 import type { PermissionKey, SystemRoleKey } from "../authorization.constants";
 
@@ -28,7 +27,6 @@ export class PermissionsGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const user = request.user;
     if (!user) throw new ForbiddenException("No tienes permisos para realizar esta accion.");
-    if (!isSuperAdmin(user) && user.organization?.status !== "ACTIVE") throw new ForbiddenException("La organizacion no esta activa.");
 
     if (!this.authorization.hasAnyRole(user.authorization, requiredRoles)) throw new ForbiddenException("No tienes permisos para realizar esta accion.");
     if (!this.authorization.hasAllPermissions(user.authorization, requiredPermissions)) throw new ForbiddenException("No tienes permisos para realizar esta accion.");
