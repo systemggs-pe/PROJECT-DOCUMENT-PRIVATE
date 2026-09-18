@@ -46,7 +46,7 @@ export class TemplateVersionsService {
       if (input.elements.length) {
         await tx.templateElement.createMany({
           data: input.elements.map((element) => ({
-            id: element.id, templateVersionId: versionId, type: element.type, name: element.name, key: element.key,
+            id: element.id, templateVersionId: versionId, type: element.type, fileFieldId: element.fileFieldId ?? null, name: element.name, key: element.key,
             page: element.page, x: element.x, y: element.y, width: element.width, height: element.height,
             rotation: element.rotation, zIndex: element.zIndex, required: element.required,
             properties: element.properties as Prisma.InputJsonValue,
@@ -88,7 +88,7 @@ export class TemplateVersionsService {
         data: {
           templateId, versionNumber: (latest._max.versionNumber ?? 0) + 1, isActive: false, paperSize: source.paperSize, orientation: source.orientation,
           width: source.width, height: source.height, marginTop: source.marginTop, marginRight: source.marginRight, marginBottom: source.marginBottom, marginLeft: source.marginLeft, pageCount: source.pageCount,
-          elements: { create: source.elements.map((element) => ({ type: element.type, name: element.name, key: element.key, page: element.page, x: element.x, y: element.y, width: element.width, height: element.height, rotation: element.rotation, zIndex: element.zIndex, required: element.required, properties: element.properties as Prisma.InputJsonValue })) },
+          elements: { create: source.elements.map((element) => ({ type: element.type, fileFieldId: element.fileFieldId, name: element.name, key: element.key, page: element.page, x: element.x, y: element.y, width: element.width, height: element.height, rotation: element.rotation, zIndex: element.zIndex, required: element.required, properties: element.properties as Prisma.InputJsonValue })) },
         },
       });
       await tx.auditLog.create({ data: { userId: user.id, action: "CREATE", entityType: "TEMPLATE_VERSION", entityId: created.id, metadata: { event: "TEMPLATE_VERSION_DUPLICATED", sourceVersionId: versionId, versionNumber: created.versionNumber } } });

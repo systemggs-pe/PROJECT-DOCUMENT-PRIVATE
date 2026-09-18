@@ -1,4 +1,4 @@
-import { Building2, FileClock, Files, FileOutput, Gauge, Layers3, Settings, ShieldCheck, UsersRound } from "lucide-react";
+import { Building2, ClipboardList, FileClock, Files, FileOutput, Gauge, Layers3, Settings, ShieldCheck, UsersRound } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
 
 import { AppShell } from "@/components/layout/AppShell";
@@ -19,6 +19,7 @@ const GeneratePage = lazy(() => import("@/features/generation/GeneratePage"));
 const UsersPage = lazy(() => import("@/features/admin/UsersPage"));
 const RolesPage = lazy(() => import("@/features/admin/RolesPage"));
 const CompanyPage = lazy(() => import("@/features/admin/CompanyPage"));
+const FileFieldsPage = lazy(() => import("@/features/admin/FileFieldsPage"));
 const SettingsPage = lazy(() => import("@/features/settings/SettingsPage"));
 
 const sections = {
@@ -41,6 +42,11 @@ const sections = {
     title: "Archivos",
     description: "Imagenes privadas.",
     icon: Files,
+  },
+  fileFields: {
+    title: "Campos de archivo",
+    description: "Catalogo dinamico.",
+    icon: ClipboardList,
   },
   generations: {
     title: "Generaciones",
@@ -98,7 +104,7 @@ export function App() {
       const path = window.location.pathname;
       setPathname(path);
       if (path.startsWith("/organizations") || path.startsWith("/organization")) window.history.replaceState(null, "", "/company");
-      setCurrentSection(path.startsWith("/templates") ? "templates" : path.startsWith("/generate") ? "generate" : path.startsWith("/files") ? "files" : path.startsWith("/generations") ? "generations" : path.startsWith("/company") || path.startsWith("/organizations") || path.startsWith("/organization") ? "company" : path.startsWith("/users") ? "users" : path.startsWith("/roles") ? "roles" : path.startsWith("/audit") ? "audit" : path.startsWith("/settings") ? "settings" : "dashboard");
+      setCurrentSection(path.startsWith("/templates") ? "templates" : path.startsWith("/generate") ? "generate" : path.startsWith("/file-fields") ? "fileFields" : path.startsWith("/files") ? "files" : path.startsWith("/generations") ? "generations" : path.startsWith("/company") || path.startsWith("/organizations") || path.startsWith("/organization") ? "company" : path.startsWith("/users") ? "users" : path.startsWith("/roles") ? "roles" : path.startsWith("/audit") ? "audit" : path.startsWith("/settings") ? "settings" : "dashboard");
     };
     syncRoute();
     window.addEventListener("popstate", syncRoute);
@@ -127,6 +133,7 @@ export function App() {
     ...(canAccessModule(identity.data, "generations") ? { generations: sections.generations } : {}),
     ...(canAccessModule(identity.data, "templates") ? { templates: sections.templates } : {}),
     ...(canAccessModule(identity.data, "files") ? { files: sections.files } : {}),
+    ...(canAccessModule(identity.data, "fileFields") ? { fileFields: sections.fileFields } : {}),
     ...(canAccessModule(identity.data, "company") ? { company: sections.company } : {}),
     ...(canAccessModule(identity.data, "users") ? { users: sections.users } : {}),
     ...(canAccessModule(identity.data, "roles") ? { roles: sections.roles } : {}),
@@ -139,7 +146,7 @@ export function App() {
       <Suspense fallback={<p role="status">Cargando...</p>}>
       {!canAccessModule(identity.data, currentSection) ? <AccessDenied /> : currentSection === "dashboard" ? (
         <Dashboard />
-      ) : currentSection === "templates" ? <Studio /> : currentSection === "generate" ? <GeneratePage /> : currentSection === "files" ? <FileLibrary /> : currentSection === "generations" ? (pathname.startsWith("/generations/") ? <GenerationDetail /> : <History />) : currentSection === "company" ? <CompanyPage /> : currentSection === "users" ? <UsersPage /> : currentSection === "roles" ? <RolesPage /> : currentSection === "audit" ? <section className="empty-state"><h2>Auditoría</h2><p>Los eventos sensibles ya se registran en backend. La vista detallada queda preparada para la siguiente iteración administrativa.</p></section> : <SettingsPage />}
+      ) : currentSection === "templates" ? <Studio /> : currentSection === "generate" ? <GeneratePage /> : currentSection === "files" ? <FileLibrary /> : currentSection === "fileFields" ? <FileFieldsPage /> : currentSection === "generations" ? (pathname.startsWith("/generations/") ? <GenerationDetail /> : <History />) : currentSection === "company" ? <CompanyPage /> : currentSection === "users" ? <UsersPage /> : currentSection === "roles" ? <RolesPage /> : currentSection === "audit" ? <section className="empty-state"><h2>Auditoría</h2><p>Los eventos sensibles ya se registran en backend. La vista detallada queda preparada para la siguiente iteración administrativa.</p></section> : <SettingsPage />}
       </Suspense>
     </AppShell></IdentityGate>
   );

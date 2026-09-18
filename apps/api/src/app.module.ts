@@ -7,6 +7,7 @@ import { AuditModule } from "./modules/audit/audit.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { CompanyModule } from "./modules/company/company.module";
 import { FilesModule } from "./modules/files/files.module";
+import { FileFieldsModule } from "./modules/file-fields/file-fields.module";
 import { GenerationsModule } from "./modules/generations/generations.module";
 import { PdfModule } from "./modules/pdf/pdf.module";
 import { RolesModule } from "./modules/roles/roles.module";
@@ -31,6 +32,7 @@ import { UsersModule } from "./modules/users/users.module";
     TemplateVersionsModule,
     TemplateElementsModule,
     FilesModule,
+    FileFieldsModule,
     GenerationsModule,
     PdfModule,
     StorageModule,

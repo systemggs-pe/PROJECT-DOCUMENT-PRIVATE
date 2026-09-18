@@ -5,6 +5,7 @@ const color = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 const fileMime = z.enum(["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]);
 const element = z.object({
   id: z.string().uuid(), type: z.enum(["IMAGE", "FILE", "TEXT", "RECTANGLE", "LINE"]),
+  fileFieldId: z.string().uuid().nullable().optional(),
   name: z.string().trim().min(1).max(120), key: z.string().regex(/^[a-z][a-z0-9_]{0,59}$/).nullable(),
   page: z.number().int().min(1).max(20), x: z.number().min(0).max(2000), y: z.number().min(0).max(2000),
   width: z.number().positive().max(2000), height: z.number().positive().max(2000),
@@ -21,6 +22,7 @@ const element = z.object({
     strokeWidth: z.number().min(0).max(10).default(1),
     fileRenderMode: z.enum(["ATTACH", "PLACE"]).default("ATTACH"),
     acceptedMimeTypes: z.array(fileMime).max(8).default(["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]),
+    maxFiles: z.number().int().min(1).max(20).default(1),
     maxSizeBytes: z.number().int().positive().max(30 * 1024 * 1024).default(10 * 1024 * 1024),
   }).strict(),
 }).strict();
@@ -42,6 +44,7 @@ function validateVersion(value: { marginLeft: number; marginRight: number; margi
     if (item.page > value.pageCount || item.x + item.width > value.width + 0.01 || item.y + item.height > value.height + 0.01) error(`El elemento ${item.name} esta fuera de la pagina.`);
     if ((item.type === "IMAGE" || item.type === "FILE") && !item.key) error("Cada imagen o archivo necesita una clave.");
     if (item.type !== "IMAGE" && item.type !== "FILE" && item.key) error("Solo los campos de imagen o archivo pueden tener clave.");
+    if (item.fileFieldId && item.type !== "IMAGE" && item.type !== "FILE") error("Solo los campos de imagen o archivo pueden usar campos de archivo.");
     if (item.key && keys.has(item.key)) error("Las claves de campos no pueden repetirse.");
     if (item.key) keys.add(item.key);
   }

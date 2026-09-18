@@ -115,21 +115,22 @@ function GenerationPanel({ template, onGenerated }: { template: Template; onGene
   const version = template.versions.find((item) => item.isActive) ?? template.versions[0];
   const slots = useMemo(() => version?.elements.filter((item) => item.type === "IMAGE") ?? [], [version]);
   const [files, setFiles] = useState<Record<string, StoredFile>>({});
-  const [pendingImage, setPendingImage] = useState<{ key: string; file: File; label: string } | null>(null);
+  const [pendingImage, setPendingImage] = useState<{ key: string; file: File; label: string; fileFieldId?: string | null | undefined } | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   if (!version) return null;
   const activeVersion = version;
-  function handleSelectedImage(key: string, label: string, file: File | undefined) {
+  function handleSelectedImage(key: string, label: string, file: File | undefined, fileFieldId?: string | null | undefined) {
     if (!file) return;
     setMessage("");
-    setPendingImage({ key, file, label });
+    setPendingImage({ key, file, label, fileFieldId });
   }
-  async function uploadImage(key: string, file: File) {
+  async function uploadImage(key: string, file: File, fileFieldId?: string | null | undefined) {
     if (!file) return;
     setMessage(""); setBusy(true);
     try {
       const form = new FormData(); form.append("file", file);
+      if (fileFieldId) form.append("fileFieldId", fileFieldId);
       const response = await apiFetch("/files", { method: "POST", body: form });
       if (!response.ok) { const error = await response.json().catch(() => ({})) as { error?: { message?: string } }; throw new Error(error.error?.message ?? "No se pudo cargar la imagen."); }
       const uploaded = await response.json() as StoredFile;
@@ -149,5 +150,5 @@ function GenerationPanel({ template, onGenerated }: { template: Template; onGene
     } catch (error) { setMessage(error instanceof Error ? error.message : "No se pudo generar el documento."); }
     finally { setBusy(false); }
   }
-  return <section className="generation-panel"><div><p className="eyebrow">Probar plantilla</p><h3>Generar documento</h3><p className="text-sm text-[var(--muted)]">Version {activeVersion.versionNumber}, {slots.length} campo{slots.length === 1 ? "" : "s"} de imagen.</p></div><div className="slot-grid">{slots.map((slot) => <div className="upload-slot" key={slot.id}><span><ImagePlus className="size-4" />{slot.name}{slot.required ? " *" : ""}</span><ImageCaptureActions disabled={busy} onSelect={(file) => handleSelectedImage(slot.key ?? slot.id, slot.name, file)} /><small>{slot.key && files[slot.key] ? files[slot.key]?.originalName : "PNG, JPG o WebP, maximo 10 MB"}</small></div>)}</div>{message && <p className={message.includes("listo") ? "studio-success" : "studio-error"} role="status">{message}</p>}<Button onClick={() => void generate()} disabled={busy}><LoaderCircle className={`mr-2 size-4 ${busy ? "animate-spin" : "hidden"}`} />Generar PDF</Button>{pendingImage && <ImageCropEditor file={pendingImage.file} contextName={pendingImage.label} onCancel={() => setPendingImage(null)} onApply={(file) => { const key = pendingImage.key; setPendingImage(null); void uploadImage(key, file); }} />}</section>;
+  return <section className="generation-panel"><div><p className="eyebrow">Probar plantilla</p><h3>Generar documento</h3><p className="text-sm text-[var(--muted)]">Version {activeVersion.versionNumber}, {slots.length} campo{slots.length === 1 ? "" : "s"} de imagen.</p></div><div className="slot-grid">{slots.map((slot) => <div className="upload-slot" key={slot.id}><span><ImagePlus className="size-4" />{slot.name}{slot.required ? " *" : ""}</span><ImageCaptureActions disabled={busy} onSelect={(file) => handleSelectedImage(slot.key ?? slot.id, slot.name, file, slot.fileFieldId)} /><small>{slot.key && files[slot.key] ? files[slot.key]?.originalName : "PNG, JPG o WebP, maximo 10 MB"}</small></div>)}</div>{message && <p className={message.includes("listo") ? "studio-success" : "studio-error"} role="status">{message}</p>}<Button onClick={() => void generate()} disabled={busy}><LoaderCircle className={`mr-2 size-4 ${busy ? "animate-spin" : "hidden"}`} />Generar PDF</Button>{pendingImage && <ImageCropEditor file={pendingImage.file} contextName={pendingImage.label} onCancel={() => setPendingImage(null)} onApply={(file) => { const key = pendingImage.key; const fileFieldId = pendingImage.fileFieldId; setPendingImage(null); void uploadImage(key, file, fileFieldId); }} />}</section>;
 }

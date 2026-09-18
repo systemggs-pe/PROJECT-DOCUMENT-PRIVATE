@@ -1,4 +1,4 @@
-import { Controller, Delete, Get, Inject, Param, ParseUUIDPipe, Post, Query, Res, UploadedFile, UseInterceptors } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Inject, Param, ParseUUIDPipe, Post, Query, Res, UploadedFile, UseInterceptors } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import type { Response } from "express";
 
@@ -13,9 +13,9 @@ export class FilesController {
 
   @Post()
   @Permissions("files.upload")
-  @UseInterceptors(FileInterceptor("file", { limits: { fileSize: 10 * 1024 * 1024, files: 1, fields: 0, parts: 2 } }))
-  upload(@UploadedFile() file: { buffer: Buffer; originalname: string; mimetype: string } | undefined, @CurrentUser() user: CurrentUserType) {
-    return this.filesService.upload(user, file);
+  @UseInterceptors(FileInterceptor("file", { limits: { fileSize: 10 * 1024 * 1024, files: 1, fields: 3, parts: 5 } }))
+  upload(@UploadedFile() file: { buffer: Buffer; originalname: string; mimetype: string } | undefined, @Body() body: Record<string, unknown>, @CurrentUser() user: CurrentUserType) {
+    return this.filesService.upload(user, file, body);
   }
 
   @Get(":id/download")

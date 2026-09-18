@@ -31,7 +31,7 @@ export default function GeneratePage() {
   const [result, setResult] = useState<Generation | null>(null);
   const [cropTarget, setCropTarget] = useState<{ key: string; file: File } | null>(null);
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
-  const [fieldFiles, setFieldFiles] = useState<Record<string, AttachmentFile>>({});
+  const [fieldFiles, setFieldFiles] = useState<Record<string, AttachmentFile[]>>({});
   const [previewUrl, setPreviewUrl] = useState("");
   const requestKey = useRef(crypto.randomUUID());
   const previewUrls = useRef(new Set<string>());
@@ -61,10 +61,11 @@ export default function GeneratePage() {
   }, []);
 
   const uploadMutation = useMutation({
-    mutationFn: async ({ key, file }: { key: string; file: File }) => {
+    mutationFn: async ({ key, file, fileFieldId }: { key: string; file: File; fileFieldId?: string | null | undefined }) => {
       validateImage(file);
       const form = new FormData();
       form.append("file", file);
+      if (fileFieldId) form.append("fileFieldId", fileFieldId);
       const uploaded = await apiJson<{ id: string; originalName: string }>("/files", { method: "POST", body: form });
       const previewUrl = URL.createObjectURL(file);
       previewUrls.current.add(previewUrl);
@@ -155,16 +156,24 @@ export default function GeneratePage() {
     closePreview();
   }
 
-  function selectFieldFile(key: string, file: AttachmentFile) {
-    setFieldFiles((current) => ({ ...current, [key]: file }));
+  function selectFieldFile(key: string, file: AttachmentFile, maxFiles = 1) {
+    setFieldFiles((current) => {
+      const list = current[key] ?? [];
+      if (list.some((item) => item.id === file.id) || list.length >= maxFiles) return current;
+      return { ...current, [key]: [...list, file] };
+    });
     setMessage("");
     closePreview();
   }
 
-  function removeFieldFile(key: string) {
+  function removeFieldFile(key: string, fileId?: string) {
     setFieldFiles((current) => {
       const next = { ...current };
-      delete next[key];
+      if (fileId) {
+        const list = (next[key] ?? []).filter((file) => file.id !== fileId);
+        if (list.length) next[key] = list;
+        else delete next[key];
+      } else delete next[key];
       return next;
     });
     closePreview();
@@ -190,14 +199,14 @@ export default function GeneratePage() {
     if (!selectedTemplate || !selectedVersion) throw new Error("Selecciona una plantilla con version activa.");
     const missing = slots.filter((slot) => slot.required && !files[slot.key!]);
     if (missing.length > 0) throw new Error(`Carga: ${missing.map((slot) => slot.name).join(", ")}.`);
-    const missingFiles = fileSlots.filter((slot) => slot.required && !fieldFiles[slot.key!]);
+    const missingFiles = fileSlots.filter((slot) => slot.required && !(fieldFiles[slot.key!]?.length));
     if (missingFiles.length > 0) throw new Error(`Carga archivo: ${missingFiles.map((slot) => slot.name).join(", ")}.`);
     return {
       templateId: selectedTemplate.id,
       templateVersionId: selectedVersion.id,
       requestKey: requestKey.current,
       inputs: Object.fromEntries(Object.entries(files).map(([key, file]) => [key, { storedFileId: file.id }])),
-      fileInputs: Object.fromEntries(Object.entries(fieldFiles).map(([key, file]) => [key, { storedFileId: file.id }])),
+      fileInputs: Object.fromEntries(Object.entries(fieldFiles).map(([key, files]) => [key, { storedFileIds: files.map((file) => file.id) }])),
       attachments: attachments.map((file, index) => ({ fileId: file.id, order: index })),
       variables,
     };
@@ -313,17 +322,19 @@ export default function GeneratePage() {
               {fileSlots.length ? (
                 <div className="generation-slots">
                   {fileSlots.map((slot) => {
-                    const selected = fieldFiles[slot.key!];
+                    const selected = fieldFiles[slot.key!] ?? [];
                     const options = attachmentCandidates(libraryFiles.data?.items ?? []).filter((file) => fileMatchesSlot(file, slot.properties));
-                    return <div className={`generation-slot ${selected ? "is-filled" : ""}`} key={slot.id}>
+                    const maxFiles = fieldMaxFiles(slot);
+                    return <div className={`generation-slot ${selected.length ? "is-filled" : ""}`} key={slot.id}>
                       <div className="slot-heading">
                         <span><Paperclip className="size-4" />{slot.name}{slot.required ? " *" : ""}</span>
-                        {selected && <Button variant="ghost" size="icon" title={`Quitar ${slot.name}`} aria-label={`Quitar ${slot.name}`} onClick={() => removeFieldFile(slot.key!)}><Trash2 className="size-4" /></Button>}
+                        <small>{selected.length}/{maxFiles}</small>
                       </div>
                       <p className="slot-empty">{slot.properties.fileRenderMode === "PLACE" ? `Se ubicara en plantilla: ${Math.round(slot.width)} x ${Math.round(slot.height)} pt.` : "Se anexara como paginas completas al final."}</p>
+                      {selected.length ? <div className="attachment-list">{selected.map((file) => <div className="attachment-row" key={file.id}><span><Paperclip className="size-4" />{file.originalName}</span><Button variant="ghost" size="icon" title="Quitar" aria-label={`Quitar ${file.originalName}`} onClick={() => removeFieldFile(slot.key!, file.id)}><Trash2 className="size-4" /></Button></div>)}</div> : null}
                       <label className="field">
-                        <span>Archivo</span>
-                        <select value={selected?.id ?? ""} onChange={(event) => { const file = options.find((item) => item.id === event.target.value); if (file) selectFieldFile(slot.key!, file); }}>
+                        <span>{selected.length >= maxFiles ? "Limite alcanzado" : "Agregar archivo"}</span>
+                        <select value="" disabled={selected.length >= maxFiles} onChange={(event) => { const file = options.find((item) => item.id === event.target.value); if (file) selectFieldFile(slot.key!, file, maxFiles); }}>
                           <option value="">Seleccionar archivo de biblioteca</option>
                           {options.map((file) => <option key={file.id} value={file.id}>{file.originalName}</option>)}
                         </select>
@@ -367,7 +378,7 @@ export default function GeneratePage() {
 
           {previewUrl && <section className="generation-preview"><div className="section-heading"><div><p className="eyebrow">Preview</p><h3>Previsualizacion del PDF</h3></div><Button type="button" variant="ghost" onClick={closePreview}>Cerrar preview</Button></div><iframe src={previewUrl} title="Previsualizacion del PDF generado" /></section>}
           {result && <section className="generation-result" role="status"><div><p className="eyebrow">Documento listo</p><h3>{result.number}</h3><p>La generacion se completo con la version {selectedVersion?.versionNumber} de {selectedTemplate.name}.</p></div><Button onClick={() => void downloadGeneration(result.id, `${result.number}.pdf`)}><Download className="mr-2 size-4" />Descargar PDF</Button></section>}
-          {cropTarget && <ImageCropEditor file={cropTarget.file} contextName={slots.find((slot) => slot.key === cropTarget.key)?.name ?? cropTarget.file.name} onCancel={() => setCropTarget(null)} onApply={(file) => { const key = cropTarget.key; setCropTarget(null); closePreview(); uploadMutation.mutate({ key, file }); }} />}
+          {cropTarget && <ImageCropEditor file={cropTarget.file} contextName={slots.find((slot) => slot.key === cropTarget.key)?.name ?? cropTarget.file.name} onCancel={() => setCropTarget(null)} onApply={(file) => { const key = cropTarget.key; const slot = slots.find((entry) => entry.key === key); setCropTarget(null); closePreview(); uploadMutation.mutate({ key, file, fileFieldId: slot?.fileFieldId }); }} />}
         </>
       )}
     </div>
@@ -396,4 +407,9 @@ function fileMatchesSlot(file: AttachmentFile, properties: { acceptedMimeTypes?:
   if (properties.acceptedMimeTypes?.length && !properties.acceptedMimeTypes.includes(file.mimeType)) return false;
   if (properties.maxSizeBytes && Number(file.sizeBytes) > properties.maxSizeBytes) return false;
   return true;
+}
+
+function fieldMaxFiles(slot: { properties: { fileRenderMode?: string; maxFiles?: number } }) {
+  if (slot.properties.fileRenderMode === "PLACE") return 1;
+  return Math.max(1, Math.min(20, Math.round(slot.properties.maxFiles ?? 1)));
 }

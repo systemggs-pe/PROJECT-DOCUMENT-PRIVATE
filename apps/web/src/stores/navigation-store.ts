@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type NavigationSection = "dashboard" | "templates" | "generate" | "files" | "generations" | "company" | "users" | "roles" | "audit" | "settings";
+export type NavigationSection = "dashboard" | "templates" | "generate" | "files" | "fileFields" | "generations" | "company" | "users" | "roles" | "audit" | "settings";
 
 interface NavigationState {
   currentSection: NavigationSection;

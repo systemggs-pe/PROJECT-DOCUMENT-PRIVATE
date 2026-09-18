@@ -25,6 +25,7 @@ import { GenerationsService } from "./generations.service";
 type DecimalLike = number | { toNumber(): number };
 type TemplateElementRecord = {
   id: string;
+  fileFieldId: string | null;
   type: string;
   name: string;
   key: string | null;
@@ -38,6 +39,7 @@ type TemplateElementRecord = {
   required: boolean;
   properties: Prisma.JsonValue;
 };
+type FileFieldRule = { id: string; label: string; required: boolean; acceptedMimeTypes: string[]; maxFiles: number; maxFileSize: number; isActive: boolean };
 
 type PreparedGeneration = {
   input: GenerationInput;
@@ -172,6 +174,7 @@ export class GenerationRunnerService {
       const imageSlots = elements.filter((element) => element.type === "IMAGE");
       const fileSlots = elements.filter((element) => element.type === "FILE");
       if ([...imageSlots, ...fileSlots].some((element) => !element.key)) throw new BadRequestException("La plantilla tiene un campo de archivo invalido.");
+      const fieldRules = await loadFileFieldRules(tx, [...imageSlots, ...fileSlots]);
 
       const slotByKey = new Map(imageSlots.map((element) => [element.key as string, element]));
       for (const item of input.inputs) {
@@ -181,23 +184,29 @@ export class GenerationRunnerService {
       for (const item of input.fileInputs) {
         if (!fileSlotByKey.has(item.key)) throw new BadRequestException({ message: `El campo ${item.key} no existe en la plantilla.`, error: "UNKNOWN_FILE_SLOT" });
       }
-      const missing = imageSlots.filter((slot) => slot.required && !input.inputs.some((item) => item.key === slot.key));
-      const missingFiles = fileSlots.filter((slot) => slot.required && !input.fileInputs.some((item) => item.key === slot.key));
+      validateFileInputCounts(input.fileInputs, fileSlotByKey, fieldRules);
+      const missing = imageSlots.filter((slot) => isRequiredSlot(slot, fieldRules) && !input.inputs.some((item) => item.key === slot.key));
+      const missingFiles = fileSlots.filter((slot) => isRequiredSlot(slot, fieldRules) && !input.fileInputs.some((item) => item.key === slot.key));
       if (missing.length + missingFiles.length > 0) throw new BadRequestException({ message: `Falta completar: ${[...missing, ...missingFiles].map((slot) => slot.name).join(", ")}.`, error: "MISSING_REQUIRED_INPUT" });
 
       const fileIds = input.inputs.map((item) => item.fileId);
-      const files = await tx.storedFile.findMany({ where: { id: { in: fileIds }, ...resourceScope(user), type: "IMAGE", bucket: this.storage.bucket }, select: { id: true, storageKey: true, bucket: true, mimeType: true, originalName: true } });
+      const files = await tx.storedFile.findMany({ where: { id: { in: fileIds }, ...resourceScope(user), type: "IMAGE", bucket: this.storage.bucket }, select: { id: true, storageKey: true, bucket: true, mimeType: true, originalName: true, sizeBytes: true } });
       if (files.length !== fileIds.length || files.some((file) => !isSafeInputKey(file.storageKey, user.id) || !isImageMime(file.mimeType))) throw new BadRequestException({ message: "Una imagen no existe o no te pertenece.", error: "INVALID_STORED_FILE" });
+      for (const item of input.inputs) {
+        const slot = slotByKey.get(item.key)!;
+        const file = files.find((entry) => entry.id === item.fileId)!;
+        if (!fileMatchesFieldRule(file, slot, fieldRules)) throw new BadRequestException({ message: `La imagen de ${slot.name} no cumple los formatos o tamano permitidos.`, error: "INVALID_FILE_FIELD" });
+      }
       const orderedAttachmentInputs = [...input.attachments].map((attachment, index) => ({ fileId: attachment.fileId, order: attachment.order ?? index })).sort((a, b) => a.order - b.order);
       const fileInputIds = input.fileInputs.map((item) => item.fileId);
       const attachmentIds = [...orderedAttachmentInputs.map((attachment) => attachment.fileId), ...fileInputIds];
-      const attachmentFiles = attachmentIds.length ? await tx.storedFile.findMany({ where: { id: { in: attachmentIds }, ...resourceScope(user), type: { in: ["PDF", "DOCUMENT"] }, bucket: this.storage.bucket }, select: { id: true, storageKey: true, bucket: true, type: true, mimeType: true, originalName: true } }) : [];
+      const attachmentFiles = attachmentIds.length ? await tx.storedFile.findMany({ where: { id: { in: attachmentIds }, ...resourceScope(user), type: { in: ["PDF", "DOCUMENT"] }, bucket: this.storage.bucket }, select: { id: true, storageKey: true, bucket: true, type: true, mimeType: true, originalName: true, sizeBytes: true } }) : [];
       if (attachmentFiles.length !== attachmentIds.length || attachmentFiles.some((file) => !isAllowedAttachment(file, user.id))) throw new BadRequestException({ message: "Solo puedes anexar PDFs, DOC o DOCX propios.", error: "INVALID_ATTACHMENT_FILE" });
       const attachmentById = new Map(attachmentFiles.map((file) => [file.id, { ...file, type: file.type as "PDF" | "DOCUMENT" }]));
       const attachments = orderedAttachmentInputs.map((attachment, index) => ({ ...attachmentById.get(attachment.fileId)!, order: index }));
       const fileInputs = input.fileInputs.map((item) => ({ input: item, slot: fileSlotByKey.get(item.key)!, file: attachmentById.get(item.fileId)! }));
       for (const item of fileInputs) {
-        if (!fileMatchesSlot(item.file, item.slot.properties)) throw new BadRequestException({ message: `El archivo de ${item.slot.name} no cumple los formatos permitidos.`, error: "INVALID_FILE_FIELD" });
+        if (!fileMatchesSlot(item.file, item.slot.properties) || !fileMatchesFieldRule(item.file, item.slot, fieldRules)) throw new BadRequestException({ message: `El archivo de ${item.slot.name} no cumple los formatos o tamano permitidos.`, error: "INVALID_FILE_FIELD" });
       }
       const placedFiles = fileInputs.filter((item) => fileRenderMode(item.slot.properties) === "PLACE").map((item) => ({ file: item.file, element: item.slot }));
       const attachedFileInputs = fileInputs.filter((item) => fileRenderMode(item.slot.properties) !== "PLACE").map((item, index) => ({ ...item.file, order: attachments.length + index }));
@@ -217,7 +226,7 @@ export class GenerationRunnerService {
         height: toNumber(version.height),
         pageCount: version.pageCount,
         attachments: allAttachments.map((attachment) => ({ fileId: attachment.id, originalName: attachment.originalName, order: attachment.order })),
-        fileInputs: fileInputs.map((item) => ({ key: item.input.key, fileId: item.file.id, mode: fileRenderMode(item.slot.properties) })),
+        fileInputs: fileInputs.map((item) => ({ key: item.input.key, fileId: item.file.id, mode: fileRenderMode(item.slot.properties), fileFieldId: item.slot.fileFieldId })),
         elements: resolvedElements.map((element) => ({ ...element, x: toNumber(element.x), y: toNumber(element.y), width: toNumber(element.width), height: toNumber(element.height), rotation: toNumber(element.rotation) })),
       } as unknown as Prisma.InputJsonValue;
 
@@ -361,9 +370,51 @@ function fileRenderMode(properties: Prisma.JsonValue) {
   return isRecord(properties) && properties.fileRenderMode === "PLACE" ? "PLACE" : "ATTACH";
 }
 
-function fileMatchesSlot(file: { mimeType: string }, properties: Prisma.JsonValue) {
+async function loadFileFieldRules(tx: Prisma.TransactionClient, slots: TemplateElementRecord[]) {
+  const ids = [...new Set(slots.map((slot) => slot.fileFieldId).filter((id): id is string => Boolean(id)))];
+  if (!ids.length) return new Map<string, FileFieldRule>();
+  const fields = await tx.fileField.findMany({ where: { id: { in: ids } }, select: { id: true, label: true, required: true, acceptedMimeTypes: true, maxFiles: true, maxFileSize: true, isActive: true } });
+  if (fields.length !== ids.length || fields.some((field) => !field.isActive)) throw new BadRequestException("La plantilla usa un campo de archivo inactivo o inexistente.");
+  return new Map(fields.map((field) => [field.id, field]));
+}
+
+function isRequiredSlot(slot: TemplateElementRecord, rules: Map<string, FileFieldRule>) {
+  const rule = slot.fileFieldId ? rules.get(slot.fileFieldId) : null;
+  return Boolean(slot.required || rule?.required);
+}
+
+function fileMatchesSlot(file: { mimeType: string; sizeBytes?: bigint }, properties: Prisma.JsonValue) {
   if (!isRecord(properties) || !Array.isArray(properties.acceptedMimeTypes)) return true;
-  return properties.acceptedMimeTypes.includes(file.mimeType);
+  if (!properties.acceptedMimeTypes.includes(file.mimeType)) return false;
+  if (typeof properties.maxSizeBytes === "number" && file.sizeBytes && file.sizeBytes > BigInt(properties.maxSizeBytes)) return false;
+  return true;
+}
+
+function fileMatchesFieldRule(file: { mimeType: string; sizeBytes?: bigint }, slot: TemplateElementRecord, rules: Map<string, FileFieldRule>) {
+  if (!slot.fileFieldId) return true;
+  const rule = rules.get(slot.fileFieldId);
+  if (!rule) return false;
+  if (!rule.acceptedMimeTypes.includes(file.mimeType)) return false;
+  if (file.sizeBytes && file.sizeBytes > BigInt(rule.maxFileSize)) return false;
+  return true;
+}
+
+function validateFileInputCounts(fileInputs: GenerationInput["fileInputs"], slots: Map<string, TemplateElementRecord>, rules: Map<string, FileFieldRule>) {
+  const counts = new Map<string, number>();
+  for (const item of fileInputs) counts.set(item.key, (counts.get(item.key) ?? 0) + 1);
+  for (const [key, count] of counts) {
+    const slot = slots.get(key);
+    if (!slot) continue;
+    const rule = slot.fileFieldId ? rules.get(slot.fileFieldId) : null;
+    const maxFiles = rule?.maxFiles ?? slotMaxFiles(slot.properties);
+    if (count > maxFiles) throw new BadRequestException({ message: `Puedes adjuntar un maximo de ${maxFiles} archivo(s) para ${slot.name}.`, error: "TOO_MANY_FILE_FIELD_FILES" });
+    if (count > 1 && fileRenderMode(slot.properties) === "PLACE") throw new BadRequestException({ message: `${slot.name} solo admite un archivo cuando se ubica dentro de la hoja.`, error: "TOO_MANY_PLACED_FILES" });
+  }
+}
+
+function slotMaxFiles(properties: Prisma.JsonValue) {
+  if (!isRecord(properties) || typeof properties.maxFiles !== "number") return 1;
+  return Math.max(1, Math.min(20, Math.round(properties.maxFiles)));
 }
 
 function toNumber(value: DecimalLike) {

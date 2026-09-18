@@ -20,6 +20,7 @@ const permissions = [
   "templates.read", "templates.create", "templates.update", "templates.delete",
   "template_versions.read", "template_versions.create", "template_versions.update", "template_versions.delete",
   "files.read", "files.upload", "files.delete",
+  "file_fields.read", "file_fields.create", "file_fields.update", "file_fields.delete",
   "generations.read", "generations.create", "generations.delete", "generations.download",
   "audit.read",
 ] as const;
@@ -34,12 +35,14 @@ const rolePermissionMap = {
     "templates.read", "templates.create", "templates.update", "templates.delete",
     "template_versions.read", "template_versions.create", "template_versions.update", "template_versions.delete",
     "files.read", "files.upload", "files.delete",
+    "file_fields.read", "file_fields.create", "file_fields.update", "file_fields.delete",
     "generations.read", "generations.create", "generations.delete", "generations.download",
   ],
   USER: [
     "templates.read", "templates.create", "templates.update", "templates.delete",
     "template_versions.read", "template_versions.create", "template_versions.update", "template_versions.delete",
     "files.read", "files.upload", "files.delete",
+    "file_fields.read",
     "generations.read", "generations.create", "generations.delete", "generations.download",
   ],
 } as const;
@@ -50,13 +53,13 @@ async function main(): Promise<void> {
   await prisma.companySettings.upsert({
     where: { id: "global" },
     update: {
-      name: "GGS Document Studio",
-      legalName: "GGS Demo",
+      name: "Empresa",
+      country: "Peru",
     },
     create: {
       id: "global",
-      name: "GGS Document Studio",
-      legalName: "GGS Demo",
+      name: "Empresa",
+      country: "Peru",
     },
   });
 
@@ -67,6 +70,8 @@ async function main(): Promise<void> {
       create: { key, name: humanizePermission(key), metadata: { group: key.split(".")[0] } },
     });
   }
+
+  await seedSystemFileFields();
 
   const roles = {} as Record<RoleKey, { id: string }>;
   for (const key of Object.keys(rolePermissionMap) as RoleKey[]) {
@@ -164,6 +169,57 @@ async function main(): Promise<void> {
       prefix: "GGS",
       padding: 6,
       currentValue: 0,
+    },
+  });
+}
+
+async function seedSystemFileFields() {
+  await prisma.fileField.upsert({
+    where: { key: "foto_principal" },
+    update: {
+      label: "Foto principal",
+      source: "SYSTEM",
+      isActive: true,
+      acceptedMimeTypes: ["image/jpeg", "image/png", "image/webp"],
+      maxFiles: 1,
+      maxFileSize: 10 * 1024 * 1024,
+      sortOrder: 10,
+    },
+    create: {
+      id: "00000000-0000-4000-8000-000000000201",
+      key: "foto_principal",
+      label: "Foto principal",
+      description: "Campo precargado para imagenes del documento.",
+      required: true,
+      acceptedMimeTypes: ["image/jpeg", "image/png", "image/webp"],
+      maxFiles: 1,
+      maxFileSize: 10 * 1024 * 1024,
+      source: "SYSTEM",
+      sortOrder: 10,
+    },
+  });
+  await prisma.fileField.upsert({
+    where: { key: "documento_principal" },
+    update: {
+      label: "Documento principal",
+      source: "SYSTEM",
+      isActive: true,
+      acceptedMimeTypes: ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+      maxFiles: 1,
+      maxFileSize: 10 * 1024 * 1024,
+      sortOrder: 20,
+    },
+    create: {
+      id: "00000000-0000-4000-8000-000000000202",
+      key: "documento_principal",
+      label: "Documento principal",
+      description: "Campo precargado para PDF, DOC o DOCX.",
+      required: false,
+      acceptedMimeTypes: ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+      maxFiles: 1,
+      maxFileSize: 10 * 1024 * 1024,
+      source: "SYSTEM",
+      sortOrder: 20,
     },
   });
 }

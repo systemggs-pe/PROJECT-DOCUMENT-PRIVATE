@@ -10,6 +10,7 @@ export const MODULE_PERMISSIONS: Partial<Record<NavigationSection, string[]>> = 
   generations: ["generations.read"],
   templates: ["templates.read"],
   files: ["files.read"],
+  fileFields: ["file_fields.read"],
   company: ["company.read"],
   users: ["users.read"],
   roles: ["roles.read", "permissions.read"],

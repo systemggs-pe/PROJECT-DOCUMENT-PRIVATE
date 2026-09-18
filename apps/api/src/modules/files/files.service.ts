@@ -22,6 +22,7 @@ const filesQuerySchema = z.object({
   sortBy: z.enum(["createdAt", "originalName", "sizeBytes"]).default("createdAt"),
   sortOrder: z.enum(["asc", "desc"]).default("desc"),
 }).strict();
+const uploadContextSchema = z.object({ fileFieldId: z.string().uuid().optional() }).passthrough();
 
 export type FilesQuery = z.infer<typeof filesQuerySchema>;
 
@@ -30,9 +31,11 @@ export class FilesService {
   private readonly logger = new Logger(FilesService.name);
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService, @Inject(StorageService) private readonly storage?: StorageService) {}
 
-  async upload(user: CurrentUser, file: { buffer: Buffer; originalname: string; mimetype: string } | undefined) {
+  async upload(user: CurrentUser, file: { buffer: Buffer; originalname: string; mimetype: string } | undefined, rawContext: unknown = {}) {
     if (!file) throw new BadRequestException("Selecciona un archivo permitido de hasta 10 MB.");
     const upload = await prepareUpload(file);
+    const context = parseUploadContext(rawContext);
+    const fileField = context.fileFieldId ? await this.validateFileFieldUpload(user, context.fileFieldId, upload) : null;
     const id = randomUUID();
     const key = `company/files/${id}/original${upload.extension}`;
     const storage = this.requireStorage();
@@ -43,7 +46,8 @@ export class FilesService {
           id, originalName: sanitizeOriginalName(file.originalname), storageKey: key, bucket: storage.bucket,
           type: upload.type, mimeType: upload.mimeType, sizeBytes: BigInt(upload.data.length),
           width: upload.width, height: upload.height, checksum: createHash("sha256").update(upload.data).digest("hex"), createdById: user.id,
-          metadata: { sourceMimeType: file.mimetype, normalized: upload.type === "IMAGE", storagePathPolicy: "company/files/{fileId}/original{extension}" },
+          fileFieldId: fileField?.id ?? null,
+          metadata: { sourceMimeType: file.mimetype, normalized: upload.type === "IMAGE", storagePathPolicy: "company/files/{fileId}/original{extension}", ...(fileField ? { fileFieldKey: fileField.key, fileFieldLabel: fileField.label } : {}) },
         } });
         await tx.auditLog.create({ data: { userId: user.id, action: "CREATE", entityType: "STORED_FILE", entityId: saved.id, metadata: { event: "FILE_UPLOADED", mimeType: saved.mimeType, sizeBytes: saved.sizeBytes.toString() } } });
         return saved;
@@ -123,6 +127,14 @@ export class FilesService {
 
     return serializeStoredFile(file);
   }
+
+  private async validateFileFieldUpload(user: CurrentUser, fileFieldId: string, upload: PreparedUpload) {
+    const field = await this.prisma.client.fileField.findUnique({ where: { id: fileFieldId } });
+    if (!field || !field.isActive) throw new BadRequestException("El campo de archivo no existe o esta inactivo.");
+    if (!field.acceptedMimeTypes.includes(upload.mimeType)) throw new BadRequestException(`Este campo acepta unicamente: ${field.acceptedMimeTypes.join(", ")}.`);
+    if (upload.data.length > field.maxFileSize) throw new BadRequestException(`El archivo supera el limite configurado para ${field.label}.`);
+    return field;
+  }
 }
 
 function serializeStoredFile<T extends { sizeBytes: bigint }>(file: T): Omit<T, "sizeBytes"> & { sizeBytes: string } {
@@ -135,6 +147,12 @@ function serializeStoredFile<T extends { sizeBytes: bigint }>(file: T): Omit<T, 
 export function parseFilesQuery(value: unknown): FilesQuery {
   const parsed = filesQuerySchema.safeParse(value);
   if (!parsed.success) throw new BadRequestException("Los filtros de archivos no son validos.");
+  return parsed.data;
+}
+
+function parseUploadContext(value: unknown) {
+  const parsed = uploadContextSchema.safeParse(value);
+  if (!parsed.success) throw new BadRequestException("Los datos de subida no son validos.");
   return parsed.data;
 }
 

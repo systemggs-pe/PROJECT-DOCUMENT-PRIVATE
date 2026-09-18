@@ -1935,8 +1935,41 @@ summary:focus-visible {
   gap: 0.75rem;
 }
 
+.company-form textarea {
+  min-height: 7rem;
+  resize: vertical;
+}
+
 .company-form-wide {
   grid-column: 1 / -1;
+}
+
+.company-logo-panel {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) 1fr;
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.company-logo-preview {
+  display: grid;
+  min-height: 150px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.company-logo-preview img {
+  max-width: 100%;
+  max-height: 180px;
+  object-fit: contain;
+}
+
+.company-logo-controls {
+  display: grid;
+  gap: 0.75rem;
+  align-content: start;
 }
 
 .company-summary {
@@ -2268,7 +2301,8 @@ summary:focus-visible {
   }
 
   .company-form-grid,
-  .company-summary {
+  .company-summary,
+  .company-logo-panel {
     grid-template-columns: 1fr;
   }
 

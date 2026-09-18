@@ -45,6 +45,11 @@ enum StoredFileType {
   DOCUMENT
 }
 
+enum FileFieldSource {
+  SYSTEM
+  CUSTOM
+}
+
 enum GenerationStatus {
   PENDING
   PROCESSING
@@ -74,21 +79,34 @@ enum AuditEntityType {
   GENERATION
   GENERATION_INPUT
   STORED_FILE
+  FILE_FIELD
 }
 
 model CompanySettings {
   id             String   @id @default("global")
   name           String
+  tradeName      String?  @map("trade_name")
   legalName      String?  @map("legal_name")
   documentNumber String?  @map("document_number")
   email          String?
   phone          String?
+  website        String?
   address        String?
+  city           String?
+  region         String?
+  country        String?  @default("Peru")
   logoUrl        String?  @map("logo_url")
+  logoFileId     String?  @map("logo_file_id") @db.Uuid
+  description    String?
+  slogan         String?
+  footerText     String?  @map("footer_text")
   metadata       Json     @default("{}")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
+  logoFile StoredFile? @relation("CompanyLogo", fields: [logoFileId], references: [id], onDelete: SetNull)
+
+  @@index([logoFileId])
   @@map("company_settings")
 }
 
@@ -226,6 +244,7 @@ model TemplateVersion {
 model TemplateElement {
   id                String              @id @default(uuid()) @db.Uuid
   templateVersionId String              @map("template_version_id") @db.Uuid
+  fileFieldId       String?             @map("file_field_id") @db.Uuid
   type              TemplateElementType
   name              String
   key               String?
@@ -242,14 +261,41 @@ model TemplateElement {
   updatedAt         DateTime            @updatedAt @map("updated_at")
 
   templateVersion  TemplateVersion   @relation(fields: [templateVersionId], references: [id], onDelete: Restrict)
+  fileField        FileField?        @relation(fields: [fileFieldId], references: [id], onDelete: SetNull)
   generationInputs GenerationInput[]
 
   @@unique([templateVersionId, key])
   @@index([templateVersionId])
+  @@index([fileFieldId])
   @@index([templateVersionId, type])
   @@index([key])
   @@index([type])
   @@map("template_elements")
+}
+
+model FileField {
+  id                String          @id @default(uuid()) @db.Uuid
+  key               String          @unique
+  label             String
+  description       String?
+  required          Boolean         @default(false)
+  acceptedMimeTypes String[]        @default([]) @map("accepted_mime_types")
+  maxFiles          Int             @default(1) @map("max_files")
+  maxFileSize       Int             @default(10485760) @map("max_file_size")
+  source            FileFieldSource @default(CUSTOM)
+  isActive          Boolean         @default(true) @map("is_active")
+  sortOrder         Int             @default(0) @map("sort_order")
+  metadata          Json            @default("{}")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  templateElements TemplateElement[]
+  storedFiles      StoredFile[]
+
+  @@index([source])
+  @@index([isActive])
+  @@index([sortOrder])
+  @@map("file_fields")
 }
 
 model StoredFile {
@@ -265,14 +311,18 @@ model StoredFile {
   height       Int?
   metadata     Json           @default("{}")
   createdById  String         @map("created_by_id") @db.Uuid
+  fileFieldId  String?        @map("file_field_id") @db.Uuid
   createdAt    DateTime       @default(now()) @map("created_at")
 
   createdBy           User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  fileField           FileField?        @relation(fields: [fileFieldId], references: [id], onDelete: SetNull)
   generationInputs    GenerationInput[]
   generationAttachments GenerationAttachment[]
   outputForGeneration Generation?       @relation("GenerationOutputFile")
+  logoForCompany      CompanySettings[] @relation("CompanyLogo")
 
   @@index([createdById])
+  @@index([fileFieldId])
   @@index([type])
   @@index([createdAt])
   @@map("stored_files")

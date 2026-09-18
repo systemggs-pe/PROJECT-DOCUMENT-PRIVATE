@@ -138,6 +138,6 @@ export function versionData(templateId: string, input: TemplateVersionInput | Te
   return {
     templateId, versionNumber: 1, isActive, paperSize: input.paperSize, orientation: input.orientation, width: input.width, height: input.height,
     pageCount: input.pageCount, marginTop: input.marginTop, marginRight: input.marginRight, marginBottom: input.marginBottom, marginLeft: input.marginLeft,
-    elements: { create: input.elements.map((item) => ({ type: item.type, name: item.name, key: item.key, page: item.page, x: item.x, y: item.y, width: item.width, height: item.height, rotation: item.rotation, zIndex: item.zIndex, required: item.required, properties: item.properties })) },
+    elements: { create: input.elements.map((item) => ({ type: item.type, fileFieldId: item.fileFieldId ?? null, name: item.name, key: item.key, page: item.page, x: item.x, y: item.y, width: item.width, height: item.height, rotation: item.rotation, zIndex: item.zIndex, required: item.required, properties: item.properties })) },
   };
 }

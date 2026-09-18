@@ -2,10 +2,10 @@ export interface ElementProperties {
   fitMode: "contain" | "cover" | "stretch"; border: boolean; borderWidth: number; borderRadius: number;
   text: string; fontSize: number; fontFamily: string; fontWeight: "400" | "500" | "600" | "700"; textAlign: "left" | "center" | "right";
   color: string; fill: string; stroke: string; strokeWidth: number;
-  fileRenderMode: "ATTACH" | "PLACE"; acceptedMimeTypes: string[]; maxSizeBytes: number;
+  fileRenderMode: "ATTACH" | "PLACE"; acceptedMimeTypes: string[]; maxFiles: number; maxSizeBytes: number;
 }
 export interface StudioElement {
-  id: string; type: "IMAGE" | "FILE" | "TEXT" | "RECTANGLE" | "LINE"; name: string; key: string | null;
+  id: string; type: "IMAGE" | "FILE" | "TEXT" | "RECTANGLE" | "LINE"; fileFieldId?: string | null; name: string; key: string | null;
   page: number; x: number; y: number; width: number; height: number; rotation: number; zIndex: number; required: boolean;
   properties: ElementProperties;
 }
@@ -22,10 +22,10 @@ export interface GenerationFile { id: string; originalName: string; mimeType: st
 export interface GenerationInput { id: string; key: string; value: unknown; fileId: string | null; templateElement: { id: string; name: string; key: string | null; type: string }; file: GenerationFile | null }
 export interface Generation { id: string; number: string; status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED"; outputFileId: string | null; createdAt: string; errorMessage: string | null; template?: { id?: string; name: string }; templateVersion?: { id?: string; versionNumber: number; paperSize?: string; orientation?: string; pageCount?: number }; outputFile?: GenerationFile | null; inputs?: GenerationInput[]; snapshot?: { name?: string } }
 export interface GenerationPage { items: Generation[]; page: number; pageSize: number; total: number; totalPages: number }
-export const properties: ElementProperties = { fitMode: "contain", border: false, borderWidth: 1, borderRadius: 0, text: "Texto", fontSize: 12, fontFamily: "Inter", fontWeight: "400", textAlign: "left", color: "#17211c", fill: "#eef2f4", stroke: "#63716a", strokeWidth: 1, fileRenderMode: "ATTACH", acceptedMimeTypes: ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"], maxSizeBytes: 10 * 1024 * 1024 };
+export const properties: ElementProperties = { fitMode: "contain", border: false, borderWidth: 1, borderRadius: 0, text: "Texto", fontSize: 12, fontFamily: "Inter", fontWeight: "400", textAlign: "left", color: "#17211c", fill: "#eef2f4", stroke: "#63716a", strokeWidth: 1, fileRenderMode: "ATTACH", acceptedMimeTypes: ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"], maxFiles: 1, maxSizeBytes: 10 * 1024 * 1024 };
 export const paperSizes = { A4: [595.28, 841.89], A5: [419.53, 595.28], LETTER: [612, 792], LEGAL: [612, 1008] } as const;
 export function newElement(type: StudioElement["type"], index: number, page = 1): StudioElement {
-  return { id: crypto.randomUUID(), type, name: type === "IMAGE" ? "Imagen" : type === "FILE" ? "Archivo" : type === "TEXT" ? "Texto" : type === "LINE" ? "Linea" : "Rectangulo", key: type === "IMAGE" || type === "FILE" ? `${type === "IMAGE" ? "imagen" : "archivo"}_${crypto.randomUUID().replaceAll("-", "").slice(0, 10)}` : null, page, x: 40, y: 40, width: type === "FILE" ? 220 : 150, height: type === "LINE" ? 2 : type === "TEXT" ? 32 : type === "FILE" ? 160 : 100, rotation: 0, zIndex: index, required: type === "IMAGE" || type === "FILE", properties: { ...properties } };
+  return { id: crypto.randomUUID(), type, fileFieldId: null, name: type === "IMAGE" ? "Imagen" : type === "FILE" ? "Archivo" : type === "TEXT" ? "Texto" : type === "LINE" ? "Linea" : "Rectangulo", key: type === "IMAGE" || type === "FILE" ? `${type === "IMAGE" ? "imagen" : "archivo"}_${crypto.randomUUID().replaceAll("-", "").slice(0, 10)}` : null, page, x: 40, y: 40, width: type === "FILE" ? 220 : 150, height: type === "LINE" ? 2 : type === "TEXT" ? 32 : type === "FILE" ? 160 : 100, rotation: 0, zIndex: index, required: type === "IMAGE" || type === "FILE", properties: { ...properties } };
 }
 export function newDraft(example = false): Draft {
   return { name: example ? "DNI + Foto" : "Nueva plantilla", description: "", paperSize: "A4", orientation: "PORTRAIT", width: 595.28, height: 841.89, marginTop: 28.35, marginRight: 28.35, marginBottom: 28.35, marginLeft: 28.35, pageCount: 1,
@@ -43,7 +43,7 @@ export function toDraft(template: Template): Draft {
 export function toVersionDraft(template: Template, version: Version): Draft {
   return { name: template.name, description: template.description ?? "", paperSize: version.paperSize, orientation: version.orientation,
     width: Number(version.width), height: Number(version.height), marginTop: Number(version.marginTop), marginRight: Number(version.marginRight), marginBottom: Number(version.marginBottom), marginLeft: Number(version.marginLeft), pageCount: version.pageCount ?? 1, expectedVersion: version.versionNumber,
-    elements: version.elements.map((item) => ({ id: item.id, type: item.type, name: item.name, key: item.key, page: item.page, x: Number(item.x), y: Number(item.y), width: Number(item.width), height: Number(item.height), rotation: Number(item.rotation), zIndex: item.zIndex, required: item.required, properties: { ...properties, ...item.properties } })) };
+    elements: version.elements.map((item) => ({ id: item.id, type: item.type, fileFieldId: item.fileFieldId ?? null, name: item.name, key: item.key, page: item.page, x: Number(item.x), y: Number(item.y), width: Number(item.width), height: Number(item.height), rotation: Number(item.rotation), zIndex: item.zIndex, required: item.required, properties: { ...properties, ...item.properties } })) };
 }
 
 export function editorToDocument(value: number, zoom: number) { return value / zoom; }
@@ -64,6 +64,7 @@ export function normalizeElement(element: StudioElement, draft: Pick<Draft, "wid
     rotation: finiteInRange(element.rotation, -180, 180),
     zIndex: Math.round(finiteInRange(element.zIndex, 0, 1000)),
     key: element.type === "IMAGE" || element.type === "FILE" ? sanitizeKey(element.key ?? element.name) : null,
+    fileFieldId: element.type === "IMAGE" || element.type === "FILE" ? element.fileFieldId ?? null : null,
     properties: normalizeProperties(element.properties),
   };
 }
@@ -142,6 +143,7 @@ function normalizeProperties(value: ElementProperties): ElementProperties {
     strokeWidth: finiteInRange(value.strokeWidth, 0, 10),
     fileRenderMode: value.fileRenderMode === "PLACE" ? "PLACE" : "ATTACH",
     acceptedMimeTypes: Array.isArray(value.acceptedMimeTypes) ? value.acceptedMimeTypes.filter((item) => typeof item === "string") : properties.acceptedMimeTypes,
+    maxFiles: Math.round(finiteInRange(value.maxFiles, 1, 20)),
     maxSizeBytes: finiteInRange(value.maxSizeBytes, 1, 30 * 1024 * 1024),
   };
 }
