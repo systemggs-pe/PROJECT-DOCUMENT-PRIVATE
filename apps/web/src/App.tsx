@@ -7,7 +7,7 @@ import { AuthPage } from "@/features/auth/AuthPage";
 import { ResetPasswordPage } from "@/features/auth/ResetPasswordPage";
 import { Dashboard } from "@/features/dashboard/Dashboard";
 import { IdentityGate } from "@/features/auth/IdentityGate";
-import { can, useCurrentIdentity } from "@/features/auth/authorization";
+import { canAccessModule, useCurrentIdentity } from "@/features/auth/authorization";
 import { useAuthStore } from "@/stores/auth-store";
 import { useNavigationStore } from "@/stores/navigation-store";
 
@@ -123,22 +123,21 @@ export function App() {
 
   const visibleSections = {
     dashboard: sections.dashboard,
-    ...(can(identity.data, "generations.create") ? { generate: sections.generate } : {}),
-    ...(can(identity.data, "generations.read") ? { generations: sections.generations } : {}),
-    ...(can(identity.data, "templates.read") ? { templates: sections.templates } : {}),
-    ...(can(identity.data, "files.read") ? { files: sections.files } : {}),
-    ...(can(identity.data, "company.read") ? { company: sections.company } : {}),
-    ...(can(identity.data, "users.read") ? { users: sections.users } : {}),
-    ...(can(identity.data, "roles.read") ? { roles: sections.roles } : {}),
-    ...(can(identity.data, "audit.read") ? { audit: sections.audit } : {}),
+    ...(canAccessModule(identity.data, "generate") ? { generate: sections.generate } : {}),
+    ...(canAccessModule(identity.data, "generations") ? { generations: sections.generations } : {}),
+    ...(canAccessModule(identity.data, "templates") ? { templates: sections.templates } : {}),
+    ...(canAccessModule(identity.data, "files") ? { files: sections.files } : {}),
+    ...(canAccessModule(identity.data, "company") ? { company: sections.company } : {}),
+    ...(canAccessModule(identity.data, "users") ? { users: sections.users } : {}),
+    ...(canAccessModule(identity.data, "roles") ? { roles: sections.roles } : {}),
+    ...(canAccessModule(identity.data, "audit") ? { audit: sections.audit } : {}),
     settings: sections.settings,
   };
-  const requiredPermission = currentSection === "generate" ? "generations.create" : currentSection === "generations" ? "generations.read" : currentSection === "templates" ? "templates.read" : currentSection === "files" ? "files.read" : currentSection === "company" ? "company.read" : currentSection === "users" ? "users.read" : currentSection === "roles" ? "roles.read" : currentSection === "audit" ? "audit.read" : "";
 
   return (
     <IdentityGate><AppShell sections={visibleSections}>
       <Suspense fallback={<p role="status">Cargando...</p>}>
-      {requiredPermission && !can(identity.data, requiredPermission) ? <AccessDenied /> : currentSection === "dashboard" ? (
+      {!canAccessModule(identity.data, currentSection) ? <AccessDenied /> : currentSection === "dashboard" ? (
         <Dashboard />
       ) : currentSection === "templates" ? <Studio /> : currentSection === "generate" ? <GeneratePage /> : currentSection === "files" ? <FileLibrary /> : currentSection === "generations" ? (pathname.startsWith("/generations/") ? <GenerationDetail /> : <History />) : currentSection === "company" ? <CompanyPage /> : currentSection === "users" ? <UsersPage /> : currentSection === "roles" ? <RolesPage /> : currentSection === "audit" ? <section className="empty-state"><h2>Auditoría</h2><p>Los eventos sensibles ya se registran en backend. La vista detallada queda preparada para la siguiente iteración administrativa.</p></section> : <SettingsPage />}
       </Suspense>

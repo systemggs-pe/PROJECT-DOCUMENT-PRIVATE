@@ -30,6 +30,14 @@ describe("PermissionsGuard", () => {
     const guard = new PermissionsGuard(reflector([], ["SUPERADMIN"]), authorization());
     expect(() => guard.canActivate(context(user(["users.read"], ["ADMIN"])))).toThrow(ForbiddenException);
   });
+
+  it("rejects inactive users even when their token is otherwise valid", () => {
+    const guard = new PermissionsGuard(reflector(["generations.read"], []), authorization());
+    const inactive = user(["generations.read"], ["USER"]);
+    inactive.isActive = false;
+    inactive.status = "INACTIVE";
+    expect(() => guard.canActivate(context(inactive))).toThrow(ForbiddenException);
+  });
 });
 
 function reflector(permissions: PermissionKey[], roles: string[]) {
@@ -55,7 +63,7 @@ function context(currentUser: ReturnType<typeof user>) {
 
 function user(permissions: PermissionKey[], roleKeys: string[]) {
   const roles = roleKeys.map((key) => ({ id: key, key, name: key, isSystem: true }));
-  return { id: "user-id", authProviderId: "auth-id", email: "user@example.com", name: null, avatarUrl: null, isActive: true, status: "ACTIVE" as const, roles, permissions, authorization: { roles, permissions } };
+  return { id: "user-id", authProviderId: "auth-id", email: "user@example.com", name: null, avatarUrl: null, isActive: true, status: "ACTIVE" as "ACTIVE" | "INACTIVE", roles, permissions, authorization: { roles, permissions } };
 }
 
 function userRoles(snapshot: unknown) {

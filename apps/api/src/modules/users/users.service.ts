@@ -1,4 +1,4 @@
-import { ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 
 import { PrismaService } from "../../common/database/prisma.service";
@@ -41,6 +41,8 @@ export class UsersService {
     const input = parseCreateUser(body);
     const created = await this.prisma.client.$transaction(async (tx) => {
       const roleIds = await this.filterAssignableRoleIds(tx, actor, input.roleIds);
+      const existing = await tx.user.findUnique({ where: { email: input.email.toLowerCase() }, select: { id: true } });
+      if (existing) throw new ConflictException("Ya existe un usuario con ese correo.");
       const data: Prisma.UserCreateInput = {
         email: input.email.toLowerCase(),
         name: input.name ?? null,
@@ -53,6 +55,9 @@ export class UsersService {
         data,
       });
       await tx.auditLog.create({ data: { userId: actor.id, action: "CREATE", entityType: "USER", entityId: user.id, metadata: { event: "USER_CREATED", roleCount: roleIds.length } } });
+      if (roleIds.length > 0) {
+        await tx.auditLog.create({ data: { userId: actor.id, action: "ASSIGN", entityType: "ROLE", entityId: user.id, metadata: { event: "USER_ROLE_CHANGED", after: roleIds } } });
+      }
       return user;
     });
     return this.findOne(actor, created.id);
@@ -89,10 +94,11 @@ export class UsersService {
 
     await this.prisma.client.$transaction(async (tx) => {
       const roleIds = await this.filterAssignableRoleIds(tx, actor, input.roleIds);
+      await this.assertSuperadminContinuity(tx, target, roleIds);
       const before = await tx.userRole.findMany({ where: { userId: id }, select: { roleId: true } });
       await tx.userRole.deleteMany({ where: { userId: id } });
       await tx.userRole.createMany({ data: roleIds.map((roleId) => ({ userId: id, roleId })), skipDuplicates: true });
-      await tx.auditLog.create({ data: { userId: actor.id, action: "ASSIGN", entityType: "ROLE", entityId: id, metadata: { event: "ROLE_ASSIGNMENT_REPLACED", before: before.map((item) => item.roleId), after: roleIds } } });
+      await tx.auditLog.create({ data: { userId: actor.id, action: "ASSIGN", entityType: "ROLE", entityId: id, metadata: { event: "USER_ROLE_CHANGED", before: before.map((item) => item.roleId), after: roleIds } } });
     });
     return this.findOne(actor, id);
   }
@@ -101,6 +107,7 @@ export class UsersService {
     const target = await this.requireScopedTarget(id, actor);
     assertCanChangeUser(actor, target, isActive);
     await this.prisma.client.$transaction(async (tx) => {
+      if (!isActive) await this.assertCanDeactivateUser(tx, target);
       await tx.user.update({ where: { id }, data: { isActive } });
       await tx.auditLog.create({ data: { userId: actor.id, action: "UPDATE", entityType: "USER", entityId: id, metadata: { event: isActive ? "USER_ACTIVATED" : "USER_DEACTIVATED" } } });
     });
@@ -123,15 +130,30 @@ export class UsersService {
       select: { id: true, key: true },
     });
     if (roles.length !== roleIds.length) throw new NotFoundException("Uno o mas roles no existen.");
-    if (!this.authorization.isSuperAdmin(actor.authorization) && roles.some((role) => role.key === SYSTEM_ROLES.SUPERADMIN)) {
-      throw new ForbiddenException("No puedes asignar SUPERADMIN.");
+    if (!this.authorization.isSuperAdmin(actor.authorization) && roles.some((role) => role.key === SYSTEM_ROLES.SUPERADMIN || role.key === SYSTEM_ROLES.ADMIN)) {
+      throw new ForbiddenException("No puedes asignar roles administrativos.");
     }
     return roles.map((role) => role.id);
+  }
+
+  private async assertCanDeactivateUser(tx: Prisma.TransactionClient, target: UserTarget) {
+    if (!isSuperadminTarget(target)) return;
+    const activeSuperadmins = await countActiveSuperadmins(tx, target.id);
+    if (activeSuperadmins === 0) throw new ForbiddenException("No puedes dejar el sistema sin SUPERADMIN activo.");
+  }
+
+  private async assertSuperadminContinuity(tx: Prisma.TransactionClient, target: UserTarget, nextRoleIds: string[]) {
+    if (!isSuperadminTarget(target)) return;
+    const nextRoles = nextRoleIds.length > 0 ? await tx.role.findMany({ where: { id: { in: nextRoleIds } }, select: { key: true } }) : [];
+    if (nextRoles.some((role) => role.key === SYSTEM_ROLES.SUPERADMIN)) return;
+    const activeSuperadmins = await countActiveSuperadmins(tx, target.id);
+    if (activeSuperadmins === 0) throw new ForbiddenException("No puedes quitar el ultimo SUPERADMIN activo.");
   }
 
 }
 
 const userInclude = { userRoles: { include: { role: { select: { id: true, key: true, name: true, isSystem: true } } } } } as const;
+type UserTarget = Prisma.UserGetPayload<{ include: typeof userInclude }>;
 
 function scopeWhere(actor: CurrentUser): Prisma.UserWhereInput {
   if (isSuperAdmin(actor)) return {};
@@ -148,4 +170,18 @@ function assertCanChangeUser(actor: CurrentUser, target: { id: string; userRoles
   if (target.userRoles.some(({ role }) => role.key === SYSTEM_ROLES.SUPERADMIN) && !actor.authorization.roles.some((role) => role.key === SYSTEM_ROLES.SUPERADMIN)) {
     throw new ForbiddenException("No puedes modificar un SUPERADMIN.");
   }
+}
+
+function isSuperadminTarget(target: { isActive: boolean; userRoles: Array<{ role: { key: string } }> }) {
+  return target.isActive && target.userRoles.some(({ role }) => role.key === SYSTEM_ROLES.SUPERADMIN);
+}
+
+async function countActiveSuperadmins(tx: Prisma.TransactionClient, excludingUserId: string) {
+  return tx.user.count({
+    where: {
+      id: { not: excludingUserId },
+      isActive: true,
+      userRoles: { some: { role: { key: SYSTEM_ROLES.SUPERADMIN, isActive: true } } },
+    },
+  });
 }

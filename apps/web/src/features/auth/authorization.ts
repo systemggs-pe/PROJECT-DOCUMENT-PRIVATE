@@ -2,6 +2,20 @@ import { useQuery } from "@tanstack/react-query";
 
 import { getMe } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
+import type { NavigationSection } from "@/stores/navigation-store";
+
+export const MODULE_PERMISSIONS: Partial<Record<NavigationSection, string[]>> = {
+  dashboard: [],
+  generate: ["generations.create"],
+  generations: ["generations.read"],
+  templates: ["templates.read"],
+  files: ["files.read"],
+  company: ["company.read"],
+  users: ["users.read"],
+  roles: ["roles.read", "permissions.read"],
+  audit: ["audit.read"],
+  settings: [],
+};
 
 export function useCurrentIdentity() {
   const session = useAuthStore((state) => state.session);
@@ -16,10 +30,18 @@ export function useCurrentIdentity() {
 
 export function useCan(permission: string) {
   const identity = useCurrentIdentity();
-  return Boolean(identity.data?.permissions.includes(permission));
+  return hasPermission(identity.data, permission);
 }
 
 export function can(identity: { permissions: string[] } | undefined, permission: string) {
-  return Boolean(identity?.permissions.includes(permission));
+  return hasPermission(identity, permission);
 }
 
+export function hasPermission(identity: { permissions: string[]; roles?: Array<{ key: string }> } | undefined, permission: string) {
+  return Boolean(identity?.roles?.some((role) => role.key === "SUPERADMIN") || identity?.permissions.includes(permission));
+}
+
+export function canAccessModule(identity: { permissions: string[]; roles?: Array<{ key: string }> } | undefined, module: NavigationSection) {
+  const permissions = MODULE_PERMISSIONS[module] ?? [];
+  return permissions.length === 0 || permissions.some((permission) => hasPermission(identity, permission));
+}

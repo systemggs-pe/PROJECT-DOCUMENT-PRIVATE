@@ -27,6 +27,7 @@ export class PermissionsGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const user = request.user;
     if (!user) throw new ForbiddenException("No tienes permisos para realizar esta accion.");
+    if (!user.isActive) throw new ForbiddenException("Tu cuenta esta desactivada.");
 
     if (!this.authorization.hasAnyRole(user.authorization, requiredRoles)) throw new ForbiddenException("No tienes permisos para realizar esta accion.");
     if (!this.authorization.hasAllPermissions(user.authorization, requiredPermissions)) throw new ForbiddenException("No tienes permisos para realizar esta accion.");

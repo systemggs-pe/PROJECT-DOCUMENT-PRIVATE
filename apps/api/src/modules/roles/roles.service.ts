@@ -62,6 +62,7 @@ export class RolesService {
     assertNoProtectedSuperadminChange(actor, current.key, current.isSystem);
     if (current.isSystem && input.key && input.key !== current.key) throw new ForbiddenException("No puedes cambiar la clave de un rol del sistema.");
     if (current.isSystem && current.key === SYSTEM_ROLES.SUPERADMIN && input.permissionIds) throw new ForbiddenException("No puedes cambiar permisos criticos de SUPERADMIN.");
+    if (current.key === SYSTEM_ROLES.SUPERADMIN && input.isActive === false) throw new ForbiddenException("No puedes desactivar el rol SUPERADMIN.");
 
     await this.prisma.client.$transaction(async (tx) => {
       const data: Prisma.RoleUpdateInput = {
