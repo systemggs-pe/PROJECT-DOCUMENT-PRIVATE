@@ -79,6 +79,49 @@ summary:focus-visible {
   padding: 1.25rem 1rem;
 }
 
+.system-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.7rem;
+  margin-top: 1.5rem;
+  padding: 0.9rem 0 calc(0.9rem + env(safe-area-inset-bottom));
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.system-footer > span:not(:last-of-type)::after {
+  content: "·";
+  margin-left: 0.7rem;
+  color: color-mix(in srgb, var(--muted) 55%, transparent);
+}
+
+.system-footer-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.system-footer-link:hover {
+  text-decoration: underline;
+}
+
+.system-footer.is-compact {
+  justify-content: flex-start;
+  margin-top: 1.5rem;
+  padding: 0;
+  color: rgb(255 255 255 / 64%);
+}
+
+.system-footer.is-compact .system-footer-link {
+  color: #fff;
+}
+
 .desktop-sidebar {
   display: none;
 }
@@ -343,6 +386,17 @@ summary:focus-visible {
     padding: 1rem 0.9rem calc(1.25rem + env(safe-area-inset-bottom));
   }
 
+  .system-footer {
+    align-items: center;
+    flex-direction: column;
+    gap: 0.2rem;
+    text-align: center;
+  }
+
+  .system-footer > span::after {
+    display: none;
+  }
+
   .page-heading,
   .studio-heading {
     align-items: stretch;
@@ -382,7 +436,9 @@ summary:focus-visible {
   .generation-config,
   .template-detail,
   .company-table,
-  .admin-table {
+  .admin-table,
+  .support-page,
+  .support-grid {
     max-width: 100%;
   }
 
@@ -396,7 +452,8 @@ summary:focus-visible {
   .company-summary,
   .admin-controls,
   .field-grid,
-  .slot-grid {
+  .slot-grid,
+  .support-grid {
     grid-template-columns: 1fr;
   }
 
@@ -693,6 +750,159 @@ summary:focus-visible {
 .empty-state h2,
 .empty-state h3 {
   color: var(--ink);
+}
+
+.support-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.support-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.support-card {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.support-hero {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
+  background: color-mix(in srgb, var(--accent) 7%, var(--panel));
+}
+
+.support-hero h3,
+.support-card h3,
+.support-card p {
+  margin: 0;
+}
+
+.support-hero h3 {
+  font-size: 1.35rem;
+}
+
+.support-hero p:not(.eyebrow),
+.support-muted,
+.support-list,
+.support-copy-status {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.support-icon {
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.5rem;
+  background: var(--ink);
+  color: #fff;
+}
+
+.support-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--ink);
+}
+
+.support-card-heading h3 {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.support-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.support-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: fit-content;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.support-link:hover {
+  text-decoration: underline;
+}
+
+.system-info-list {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+}
+
+.system-info-list div {
+  display: grid;
+  grid-template-columns: minmax(90px, 0.4fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  padding-bottom: 0.55rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.system-info-list div:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.system-info-list dt {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.system-info-list dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-weight: 650;
+}
+
+.support-copy-button {
+  width: fit-content;
+  gap: 0.45rem;
+  border: 1px solid var(--line);
+}
+
+.support-copy-status {
+  margin-top: -0.35rem;
+}
+
+.faq-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.faq-list details {
+  border: 1px solid var(--line);
+  background: var(--surface-elevated);
+}
+
+.faq-list summary {
+  cursor: pointer;
+  padding: 0.75rem 0.85rem;
+  font-weight: 650;
+}
+
+.faq-list p {
+  padding: 0 0.85rem 0.85rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
 }
 
 .loading-row {

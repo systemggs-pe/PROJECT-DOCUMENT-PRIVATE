@@ -15,6 +15,7 @@ export const MODULE_PERMISSIONS: Partial<Record<NavigationSection, string[]>> = 
   users: ["users.read"],
   roles: ["roles.read", "permissions.read"],
   audit: ["audit.read"],
+  support: [],
   settings: [],
 };
 

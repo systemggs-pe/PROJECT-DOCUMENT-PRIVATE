@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { LucideIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { systemMetadata } from "@/config/system-metadata";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
 import { useNavigationStore, type NavigationSection } from "@/stores/navigation-store";
@@ -22,7 +23,7 @@ interface SidebarProps {
   >>;
 }
 
-const sectionOrder: NavigationSection[] = ["dashboard", "generate", "generations", "templates", "files", "company", "users", "roles", "audit", "settings"];
+const sectionOrder: NavigationSection[] = ["dashboard", "generate", "generations", "templates", "files", "fileFields", "company", "users", "roles", "audit", "support", "settings"];
 
 export function Sidebar({ sections, isMobile = false, onClose, onNavigate }: SidebarProps) {
   const queryClient = useQueryClient();
@@ -50,7 +51,7 @@ export function Sidebar({ sections, isMobile = false, onClose, onNavigate }: Sid
           </div>
           <div className="min-w-0">
             <p>Document Studio</p>
-            <span>Fase 8</span>
+            <span>v{systemMetadata.version}</span>
           </div>
           {isMobile && <Button type="button" variant="ghost" size="icon" className="ml-auto" aria-label="Cerrar menu" onClick={onClose}><X className="size-4" /></Button>}
         </div>
@@ -74,7 +75,7 @@ export function Sidebar({ sections, isMobile = false, onClose, onNavigate }: Sid
                 aria-current={isActive ? "page" : undefined}
                 onClick={() => {
                   setCurrentSection(key);
-                  const path = key === "templates" ? "/templates" : key === "generate" ? "/generate" : key === "files" ? "/files" : key === "generations" ? "/generations" : key === "company" ? "/company" : key === "users" ? "/users" : key === "roles" ? "/roles" : key === "audit" ? "/audit" : key === "settings" ? "/settings" : "/";
+                  const path = key === "templates" ? "/templates" : key === "generate" ? "/generate" : key === "fileFields" ? "/file-fields" : key === "files" ? "/files" : key === "generations" ? "/generations" : key === "company" ? "/company" : key === "users" ? "/users" : key === "roles" ? "/roles" : key === "audit" ? "/audit" : key === "support" ? "/support" : key === "settings" ? "/settings" : "/";
                   if (window.location.pathname !== path) window.history.pushState(null, "", path);
                   onNavigate?.();
                 }}

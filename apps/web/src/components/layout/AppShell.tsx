@@ -3,6 +3,7 @@ import { useEffect, useId, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 
 import { Sidebar } from "@/components/layout/Sidebar";
+import { SystemFooter } from "@/components/layout/SystemFooter";
 import { Topbar } from "@/components/layout/Topbar";
 import { Button } from "@/components/ui/button";
 import type { NavigationSection } from "@/stores/navigation-store";
@@ -53,7 +54,10 @@ export function AppShell({ children, sections }: AppShellProps) {
         </div>
         <main className="app-main">
           <Topbar />
-          <div className="app-content">{children}</div>
+          <div className="app-content">
+            {children}
+            <SystemFooter />
+          </div>
         </main>
       </div>
     </div>

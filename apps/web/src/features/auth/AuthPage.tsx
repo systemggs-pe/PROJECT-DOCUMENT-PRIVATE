@@ -5,6 +5,8 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
+import { SystemFooter } from "@/components/layout/SystemFooter";
+import { systemMetadata } from "@/config/system-metadata";
 import { useAuthStore } from "@/stores/auth-store";
 
 const loginSchema = z.object({
@@ -127,7 +129,7 @@ export function AuthPage() {
           </div>
           <div>
             <p className="text-lg font-semibold">Document Studio</p>
-            <p className="text-sm text-white/70">Identidad y documentos bajo control.</p>
+            <p className="text-sm text-white/70">{systemMetadata.poweredBy} · v{systemMetadata.version}</p>
           </div>
         </div>
         <div className="max-w-xl">
@@ -240,6 +242,7 @@ export function AuthPage() {
             </button>
           </div>
         </div>
+        <SystemFooter compact showSupportLink={false} />
       </section>
     </main>
   );
