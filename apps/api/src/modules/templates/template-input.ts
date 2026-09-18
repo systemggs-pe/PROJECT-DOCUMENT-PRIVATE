@@ -2,8 +2,9 @@ import { BadRequestException } from "@nestjs/common";
 import { z } from "zod";
 
 const color = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+const fileMime = z.enum(["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]);
 const element = z.object({
-  id: z.string().uuid(), type: z.enum(["IMAGE", "TEXT", "RECTANGLE", "LINE"]),
+  id: z.string().uuid(), type: z.enum(["IMAGE", "FILE", "TEXT", "RECTANGLE", "LINE"]),
   name: z.string().trim().min(1).max(120), key: z.string().regex(/^[a-z][a-z0-9_]{0,59}$/).nullable(),
   page: z.number().int().min(1).max(20), x: z.number().min(0).max(2000), y: z.number().min(0).max(2000),
   width: z.number().positive().max(2000), height: z.number().positive().max(2000),
@@ -18,6 +19,9 @@ const element = z.object({
     textAlign: z.enum(["left", "center", "right"]).default("left"),
     color: color.default("#17211c"), fill: color.default("#eef2f4"), stroke: color.default("#63716a"),
     strokeWidth: z.number().min(0).max(10).default(1),
+    fileRenderMode: z.enum(["ATTACH", "PLACE"]).default("ATTACH"),
+    acceptedMimeTypes: z.array(fileMime).max(8).default(["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]),
+    maxSizeBytes: z.number().int().positive().max(30 * 1024 * 1024).default(10 * 1024 * 1024),
   }).strict(),
 }).strict();
 
@@ -36,9 +40,9 @@ function validateVersion(value: { marginLeft: number; marginRight: number; margi
     if (ids.has(item.id)) error("Los elementos deben tener identificadores unicos.");
     ids.add(item.id);
     if (item.page > value.pageCount || item.x + item.width > value.width + 0.01 || item.y + item.height > value.height + 0.01) error(`El elemento ${item.name} esta fuera de la pagina.`);
-    if (item.type === "IMAGE" && !item.key) error("Cada imagen necesita una clave.");
-    if (item.type !== "IMAGE" && item.key) error("Solo los campos de imagen pueden tener clave.");
-    if (item.key && keys.has(item.key)) error("Las claves de imagen no pueden repetirse.");
+    if ((item.type === "IMAGE" || item.type === "FILE") && !item.key) error("Cada imagen o archivo necesita una clave.");
+    if (item.type !== "IMAGE" && item.type !== "FILE" && item.key) error("Solo los campos de imagen o archivo pueden tener clave.");
+    if (item.key && keys.has(item.key)) error("Las claves de campos no pueden repetirse.");
     if (item.key) keys.add(item.key);
   }
 }

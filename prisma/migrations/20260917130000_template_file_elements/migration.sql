@@ -1,0 +1,1 @@
+ALTER TYPE "TemplateElementType" ADD VALUE IF NOT EXISTS 'FILE';

@@ -37,7 +37,7 @@ export class PdfService {
         width: toNumber(version.width),
         height: toNumber(version.height),
         elements: version.elements
-          .filter((element) => element.page === index + 1)
+          .filter((element) => element.page === index + 1 && element.type !== "FILE")
           .map((element) => ({
             ...element,
             x: toNumber(element.x),

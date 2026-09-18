@@ -31,6 +31,7 @@ export default function GeneratePage() {
   const [result, setResult] = useState<Generation | null>(null);
   const [cropTarget, setCropTarget] = useState<{ key: string; file: File } | null>(null);
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
+  const [fieldFiles, setFieldFiles] = useState<Record<string, AttachmentFile>>({});
   const [previewUrl, setPreviewUrl] = useState("");
   const requestKey = useRef(crypto.randomUUID());
   const previewUrls = useRef(new Set<string>());
@@ -51,6 +52,7 @@ export default function GeneratePage() {
   const activeVersion = selectedTemplate?.versions.find((item) => item.isActive) ?? selectedTemplate?.versions[0];
   const selectedVersion = selectedTemplate?.versions.find((item) => item.id === versionId) ?? activeVersion;
   const slots = useMemo(() => selectedVersion?.elements.filter((element) => element.type === "IMAGE" && element.key) ?? [], [selectedVersion]);
+  const fileSlots = useMemo(() => selectedVersion?.elements.filter((element) => element.type === "FILE" && element.key) ?? [], [selectedVersion]);
   const variableKeys = useMemo(() => extractVariableKeys(selectedVersion?.elements ?? []), [selectedVersion]);
 
   useEffect(() => () => {
@@ -121,6 +123,7 @@ export default function GeneratePage() {
     setTemplateId(id);
     setVersionId("");
     setFiles({});
+    setFieldFiles({});
     setAttachments([]);
     setResult(null);
     closePreview();
@@ -152,6 +155,21 @@ export default function GeneratePage() {
     closePreview();
   }
 
+  function selectFieldFile(key: string, file: AttachmentFile) {
+    setFieldFiles((current) => ({ ...current, [key]: file }));
+    setMessage("");
+    closePreview();
+  }
+
+  function removeFieldFile(key: string) {
+    setFieldFiles((current) => {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+    closePreview();
+  }
+
   function moveAttachment(id: string, direction: -1 | 1) {
     setAttachments((current) => {
       const index = current.findIndex((item) => item.id === id);
@@ -172,11 +190,14 @@ export default function GeneratePage() {
     if (!selectedTemplate || !selectedVersion) throw new Error("Selecciona una plantilla con version activa.");
     const missing = slots.filter((slot) => slot.required && !files[slot.key!]);
     if (missing.length > 0) throw new Error(`Carga: ${missing.map((slot) => slot.name).join(", ")}.`);
+    const missingFiles = fileSlots.filter((slot) => slot.required && !fieldFiles[slot.key!]);
+    if (missingFiles.length > 0) throw new Error(`Carga archivo: ${missingFiles.map((slot) => slot.name).join(", ")}.`);
     return {
       templateId: selectedTemplate.id,
       templateVersionId: selectedVersion.id,
       requestKey: requestKey.current,
       inputs: Object.fromEntries(Object.entries(files).map(([key, file]) => [key, { storedFileId: file.id }])),
+      fileInputs: Object.fromEntries(Object.entries(fieldFiles).map(([key, file]) => [key, { storedFileId: file.id }])),
       attachments: attachments.map((file, index) => ({ fileId: file.id, order: index })),
       variables,
     };
@@ -218,7 +239,7 @@ export default function GeneratePage() {
               </label>
               <label className="field">
                 <span>Version</span>
-                <select value={selectedVersion?.id ?? ""} onChange={(event) => { setVersionId(event.target.value); setFiles({}); setResult(null); closePreview(); }}>
+                <select value={selectedVersion?.id ?? ""} onChange={(event) => { setVersionId(event.target.value); setFiles({}); setFieldFiles({}); setResult(null); closePreview(); }}>
                   {selectedTemplate.versions.map((version) => <option key={version.id} value={version.id}>Version {version.versionNumber}{version.isActive ? " , activa" : ""}</option>)}
                 </select>
               </label>
@@ -226,6 +247,7 @@ export default function GeneratePage() {
             <div className="generation-config-meta">
               <span><strong>Formato</strong>{selectedVersion?.paperSize ?? "Sin version"} {selectedVersion?.orientation === "LANDSCAPE" ? "horizontal" : "vertical"}</span>
               <span><strong>Campos de imagen</strong>{slots.length}</span>
+              <span><strong>Campos de archivo</strong>{fileSlots.length}</span>
             </div>
 
             <div className="generation-inputs">
@@ -285,6 +307,35 @@ export default function GeneratePage() {
 
             <div className="generation-inputs">
               <div className="section-heading">
+                <div><p className="eyebrow">Campos de archivo</p><h3>PDF, DOC o DOCX de plantilla</h3></div>
+                <span className="section-count">{Object.keys(fieldFiles).length}/{fileSlots.length}</span>
+              </div>
+              {fileSlots.length ? (
+                <div className="generation-slots">
+                  {fileSlots.map((slot) => {
+                    const selected = fieldFiles[slot.key!];
+                    const options = attachmentCandidates(libraryFiles.data?.items ?? []).filter((file) => fileMatchesSlot(file, slot.properties));
+                    return <div className={`generation-slot ${selected ? "is-filled" : ""}`} key={slot.id}>
+                      <div className="slot-heading">
+                        <span><Paperclip className="size-4" />{slot.name}{slot.required ? " *" : ""}</span>
+                        {selected && <Button variant="ghost" size="icon" title={`Quitar ${slot.name}`} aria-label={`Quitar ${slot.name}`} onClick={() => removeFieldFile(slot.key!)}><Trash2 className="size-4" /></Button>}
+                      </div>
+                      <p className="slot-empty">{slot.properties.fileRenderMode === "PLACE" ? `Se ubicara en plantilla: ${Math.round(slot.width)} x ${Math.round(slot.height)} pt.` : "Se anexara como paginas completas al final."}</p>
+                      <label className="field">
+                        <span>Archivo</span>
+                        <select value={selected?.id ?? ""} onChange={(event) => { const file = options.find((item) => item.id === event.target.value); if (file) selectFieldFile(slot.key!, file); }}>
+                          <option value="">Seleccionar archivo de biblioteca</option>
+                          {options.map((file) => <option key={file.id} value={file.id}>{file.originalName}</option>)}
+                        </select>
+                      </label>
+                    </div>;
+                  })}
+                </div>
+              ) : <p className="panel-hint">Esta version no solicita archivos PDF/DOC/DOCX dentro de la plantilla.</p>}
+            </div>
+
+            <div className="generation-inputs">
+              <div className="section-heading">
                 <div><p className="eyebrow">Datos variables</p><h3>Texto del documento</h3></div>
                 <span className="section-count">{variableKeys.length}</span>
               </div>
@@ -339,4 +390,10 @@ function humanizeKey(value: string) {
 
 function attachmentCandidates(files: StoredFile[]): AttachmentFile[] {
   return files.filter((file) => file.type === "PDF" || file.type === "DOCUMENT").map((file) => ({ id: file.id, originalName: file.originalName, type: file.type, mimeType: file.mimeType, sizeBytes: file.sizeBytes }));
+}
+
+function fileMatchesSlot(file: AttachmentFile, properties: { acceptedMimeTypes?: string[]; maxSizeBytes?: number }) {
+  if (properties.acceptedMimeTypes?.length && !properties.acceptedMimeTypes.includes(file.mimeType)) return false;
+  if (properties.maxSizeBytes && Number(file.sizeBytes) > properties.maxSizeBytes) return false;
+  return true;
 }

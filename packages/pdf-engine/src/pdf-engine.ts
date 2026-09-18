@@ -257,11 +257,13 @@ function validateElement(element: ElementDefinition, page: PageDefinition): void
     if (properties.stroke) assertColor(properties.stroke, `${element.id}: stroke`);
     assertFiniteRange(properties.strokeWidth ?? 0, 0, 20, `${element.id}: stroke width`);
     assertFiniteRange(properties.borderRadius ?? 0, 0, Math.min(element.width, element.height) / 2, `${element.id}: border radius`);
-  } else {
+  } else if (element.type === "LINE") {
     const properties = element.properties;
     if (!properties) throw new InvalidElementError(`${element.id}: line properties are required`);
     assertColor(properties.stroke, `${element.id}: line color`);
     assertFiniteRange(properties.strokeWidth ?? 1, 0.1, 20, `${element.id}: line width`);
+  } else {
+    throw new UnsupportedElementTypeError(String(element.type));
   }
 }
 
@@ -278,6 +280,7 @@ function renderElement(
     else if (element.type === "TEXT") renderText(pdf, element, rect);
     else if (element.type === "RECTANGLE") renderRectangle(pdf, element, rect);
     else if (element.type === "LINE") renderLine(pdf, element, rect);
+    else throw new UnsupportedElementTypeError(String(element.type));
   } finally {
     pdf.restore();
   }

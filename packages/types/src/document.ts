@@ -9,6 +9,7 @@ export type Orientation = "PORTRAIT" | "LANDSCAPE";
 export type TemplateStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
 export type ElementType =
   | "IMAGE"
+  | "FILE"
   | "TEXT"
   | "RECTANGLE"
   | "LINE"
@@ -106,8 +107,19 @@ export interface LineElementDefinition extends BaseElementDefinition {
   };
 }
 
+export interface FileElementDefinition extends BaseElementDefinition {
+  type: "FILE";
+  key: string;
+  properties: {
+    fileRenderMode: "ATTACH" | "PLACE";
+    acceptedMimeTypes?: string[];
+    maxSizeBytes?: number;
+  };
+}
+
 export type ElementDefinition =
   | ImageElementDefinition
+  | FileElementDefinition
   | TextElementDefinition
   | RectangleElementDefinition
   | LineElementDefinition;

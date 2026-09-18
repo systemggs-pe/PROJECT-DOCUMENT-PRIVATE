@@ -9,7 +9,7 @@ import {
 } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { createHash, randomUUID } from "node:crypto";
-import { PDFDocument } from "pdf-lib";
+import { degrees, PDFDocument } from "pdf-lib";
 
 import { PdfEngineError } from "@ggs/pdf-engine";
 import { GenerationNumberService } from "../../common/database/generation-number.service";
@@ -54,6 +54,7 @@ type PreparedGeneration = {
   };
   files: Array<{ id: string; storageKey: string; bucket: string; mimeType: string; originalName: string }>;
   attachments: Array<{ id: string; storageKey: string; bucket: string; type: "PDF" | "DOCUMENT"; mimeType: string; originalName: string; order: number }>;
+  placedFiles: Array<{ file: { id: string; storageKey: string; bucket: string; type: "PDF" | "DOCUMENT"; mimeType: string; originalName: string }; element: TemplateElementRecord }>;
   elements: TemplateElementRecord[];
   snapshot: Prisma.InputJsonValue;
   fingerprint: string;
@@ -90,13 +91,14 @@ export class GenerationRunnerService {
     const assets = await this.readAssets(prepared.files);
     let pdf: Buffer;
     try {
-      const mainPdf = await this.pdf.renderTemplateVersion(
+      const renderedMainPdf = await this.pdf.renderTemplateVersion(
         {
           ...prepared.version,
           elements: prepared.elements,
         } as unknown as PdfTemplateVersionRecord,
         assets,
       );
+      const mainPdf = await this.placeFiles(renderedMainPdf, prepared);
       const attachments = await this.readAttachments(prepared.attachments);
       pdf = await mergePdfBuffers([mainPdf, ...attachments]);
     } catch (error) {
@@ -135,13 +137,14 @@ export class GenerationRunnerService {
     const prepared = await this.prepare(user, input, buildRequestHash(input), { allowExistingGeneration: false });
     const assets = await this.readAssets(prepared.files);
     try {
-      const mainPdf = await this.pdf.renderTemplateVersion(
+      const renderedMainPdf = await this.pdf.renderTemplateVersion(
         {
           ...prepared.version,
           elements: prepared.elements,
         } as unknown as PdfTemplateVersionRecord,
         assets,
       );
+      const mainPdf = await this.placeFiles(renderedMainPdf, prepared);
       const attachments = await this.readAttachments(prepared.attachments);
       return await mergePdfBuffers([mainPdf, ...attachments]);
     } catch (error) {
@@ -169,24 +172,38 @@ export class GenerationRunnerService {
       if (!version) throw new NotFoundException("La plantilla o version de plantilla no existe.");
       const elements = version.elements as unknown as TemplateElementRecord[];
       const imageSlots = elements.filter((element) => element.type === "IMAGE");
-      if (imageSlots.some((element) => !element.key)) throw new BadRequestException("La plantilla tiene un campo de imagen invalido.");
+      const fileSlots = elements.filter((element) => element.type === "FILE");
+      if ([...imageSlots, ...fileSlots].some((element) => !element.key)) throw new BadRequestException("La plantilla tiene un campo de archivo invalido.");
 
       const slotByKey = new Map(imageSlots.map((element) => [element.key as string, element]));
       for (const item of input.inputs) {
         if (!slotByKey.has(item.key)) throw new BadRequestException({ message: `El campo ${item.key} no existe en la plantilla.`, error: "UNKNOWN_INPUT_SLOT" });
       }
+      const fileSlotByKey = new Map(fileSlots.map((element) => [element.key as string, element]));
+      for (const item of input.fileInputs) {
+        if (!fileSlotByKey.has(item.key)) throw new BadRequestException({ message: `El campo ${item.key} no existe en la plantilla.`, error: "UNKNOWN_FILE_SLOT" });
+      }
       const missing = imageSlots.filter((slot) => slot.required && !input.inputs.some((item) => item.key === slot.key));
-      if (missing.length > 0) throw new BadRequestException({ message: `Falta completar: ${missing.map((slot) => slot.name).join(", ")}.`, error: "MISSING_REQUIRED_INPUT" });
+      const missingFiles = fileSlots.filter((slot) => slot.required && !input.fileInputs.some((item) => item.key === slot.key));
+      if (missing.length + missingFiles.length > 0) throw new BadRequestException({ message: `Falta completar: ${[...missing, ...missingFiles].map((slot) => slot.name).join(", ")}.`, error: "MISSING_REQUIRED_INPUT" });
 
       const fileIds = input.inputs.map((item) => item.fileId);
       const files = await tx.storedFile.findMany({ where: { id: { in: fileIds }, ...resourceScope(user), type: "IMAGE", bucket: this.storage.bucket }, select: { id: true, storageKey: true, bucket: true, mimeType: true, originalName: true } });
       if (files.length !== fileIds.length || files.some((file) => !isSafeInputKey(file.storageKey, user.id, organizationId) || !isImageMime(file.mimeType))) throw new BadRequestException({ message: "Una imagen no existe o no te pertenece.", error: "INVALID_STORED_FILE" });
       const orderedAttachmentInputs = [...input.attachments].map((attachment, index) => ({ fileId: attachment.fileId, order: attachment.order ?? index })).sort((a, b) => a.order - b.order);
-      const attachmentIds = orderedAttachmentInputs.map((attachment) => attachment.fileId);
+      const fileInputIds = input.fileInputs.map((item) => item.fileId);
+      const attachmentIds = [...orderedAttachmentInputs.map((attachment) => attachment.fileId), ...fileInputIds];
       const attachmentFiles = attachmentIds.length ? await tx.storedFile.findMany({ where: { id: { in: attachmentIds }, ...resourceScope(user), type: { in: ["PDF", "DOCUMENT"] }, bucket: this.storage.bucket }, select: { id: true, storageKey: true, bucket: true, type: true, mimeType: true, originalName: true } }) : [];
       if (attachmentFiles.length !== attachmentIds.length || attachmentFiles.some((file) => !isAllowedAttachment(file, user.id, organizationId))) throw new BadRequestException({ message: "Solo puedes anexar PDFs, DOC o DOCX propios.", error: "INVALID_ATTACHMENT_FILE" });
       const attachmentById = new Map(attachmentFiles.map((file) => [file.id, { ...file, type: file.type as "PDF" | "DOCUMENT" }]));
       const attachments = orderedAttachmentInputs.map((attachment, index) => ({ ...attachmentById.get(attachment.fileId)!, order: index }));
+      const fileInputs = input.fileInputs.map((item) => ({ input: item, slot: fileSlotByKey.get(item.key)!, file: attachmentById.get(item.fileId)! }));
+      for (const item of fileInputs) {
+        if (!fileMatchesSlot(item.file, item.slot.properties)) throw new BadRequestException({ message: `El archivo de ${item.slot.name} no cumple los formatos permitidos.`, error: "INVALID_FILE_FIELD" });
+      }
+      const placedFiles = fileInputs.filter((item) => fileRenderMode(item.slot.properties) === "PLACE").map((item) => ({ file: item.file, element: item.slot }));
+      const attachedFileInputs = fileInputs.filter((item) => fileRenderMode(item.slot.properties) !== "PLACE").map((item, index) => ({ ...item.file, order: attachments.length + index }));
+      const allAttachments = [...attachments, ...attachedFileInputs];
 
       const provided = new Map(input.inputs.map((item) => [item.key, item.fileId]));
       const resolvedElements = elements
@@ -201,11 +218,12 @@ export class GenerationRunnerService {
         width: toNumber(version.width),
         height: toNumber(version.height),
         pageCount: version.pageCount,
-        attachments: attachments.map((attachment) => ({ fileId: attachment.id, originalName: attachment.originalName, order: attachment.order })),
+        attachments: allAttachments.map((attachment) => ({ fileId: attachment.id, originalName: attachment.originalName, order: attachment.order })),
+        fileInputs: fileInputs.map((item) => ({ key: item.input.key, fileId: item.file.id, mode: fileRenderMode(item.slot.properties) })),
         elements: resolvedElements.map((element) => ({ ...element, x: toNumber(element.x), y: toNumber(element.y), width: toNumber(element.width), height: toNumber(element.height), rotation: toNumber(element.rotation) })),
       } as unknown as Prisma.InputJsonValue;
 
-      return { input, version, files, attachments, elements: resolvedElements, snapshot, fingerprint: fingerprint(version) };
+      return { input, version, files, attachments: allAttachments, placedFiles, elements: resolvedElements, snapshot, fingerprint: fingerprint(version) };
     });
   }
 
@@ -220,6 +238,27 @@ export class GenerationRunnerService {
       if (file.type === "PDF") return data;
       return this.documentConversion.convertToPdf({ data, originalName: file.originalName, mimeType: file.mimeType });
     }));
+  }
+
+  private async placeFiles(mainPdf: Buffer, prepared: PreparedGeneration) {
+    if (!prepared.placedFiles.length) return mainPdf;
+    const document = await PDFDocument.load(mainPdf);
+    for (const item of prepared.placedFiles) {
+      const page = document.getPage(item.element.page - 1);
+      if (!page) throw new BadRequestException(`La pagina ${item.element.page} no existe para ${item.element.name}.`);
+      const filePdf = item.file.type === "PDF"
+        ? await this.storage.read(item.file.storageKey)
+        : await this.documentConversion.convertToPdf({ data: await this.storage.read(item.file.storageKey), originalName: item.file.originalName, mimeType: item.file.mimeType });
+      const source = await PDFDocument.load(filePdf);
+      const [embedded] = await document.embedPdf(source, [0]);
+      if (!embedded) throw new BadRequestException(`No se pudo insertar ${item.file.originalName}.`);
+      const x = toNumber(item.element.x);
+      const y = toNumber(item.element.y);
+      const width = toNumber(item.element.width);
+      const height = toNumber(item.element.height);
+      page.drawPage(embedded, { x, y: page.getHeight() - y - height, width, height, rotate: degrees(toNumber(item.element.rotation)) });
+    }
+    return Buffer.from(await document.save());
   }
 
   private async reserve(user: CurrentUser, prepared: PreparedGeneration, requestHash: string, generationId: string): Promise<Reservation> {
@@ -250,6 +289,7 @@ export class GenerationRunnerService {
           snapshot: prepared.snapshot,
           inputs: { create: [
             ...prepared.input.inputs.map((item) => ({ key: item.key, fileId: item.fileId, templateElementId: prepared.version.elements.find((element) => element.key === item.key)?.id as string })),
+            ...prepared.input.fileInputs.map((item) => ({ key: item.key, fileId: item.fileId, templateElementId: prepared.version.elements.find((element) => element.key === item.key)?.id as string })),
             ...Object.entries(prepared.input.variables).filter(([key]) => prepared.version.elements.some((element) => element.type === "TEXT" && variableIsUsed(element.properties, key))).map(([key, value]) => ({ key, value, templateElementId: prepared.version.elements.find((element) => element.type === "TEXT" && variableIsUsed(element.properties, key))?.id as string })),
           ] },
           attachments: { create: prepared.attachments.map((attachment) => ({ fileId: attachment.id, order: attachment.order })) },
@@ -296,7 +336,7 @@ function assertSameRequest(existingHash: string | null, requestHash: string) {
 }
 
 function buildRequestHash(input: GenerationInput) {
-  return createHash("sha256").update(JSON.stringify({ templateId: input.templateId ?? null, templateVersionId: input.templateVersionId ?? null, inputs: [...input.inputs].sort((a, b) => a.key.localeCompare(b.key)), attachments: input.attachments.map((attachment, index) => ({ fileId: attachment.fileId, order: attachment.order ?? index })).sort((a, b) => a.order - b.order), variables: Object.fromEntries(Object.entries(input.variables).sort(([a], [b]) => a.localeCompare(b))) })).digest("hex");
+  return createHash("sha256").update(JSON.stringify({ templateId: input.templateId ?? null, templateVersionId: input.templateVersionId ?? null, inputs: [...input.inputs].sort((a, b) => a.key.localeCompare(b.key)), fileInputs: [...input.fileInputs].sort((a, b) => a.key.localeCompare(b.key)), attachments: input.attachments.map((attachment, index) => ({ fileId: attachment.fileId, order: attachment.order ?? index })).sort((a, b) => a.order - b.order), variables: Object.fromEntries(Object.entries(input.variables).sort(([a], [b]) => a.localeCompare(b))) })).digest("hex");
 }
 
 function fingerprint(version: { id: string; versionNumber: number; paperSize: string; orientation: string; width: DecimalLike; height: DecimalLike; pageCount: number; elements: unknown[] }) {
@@ -320,6 +360,15 @@ function escapeRegExp(value: string) {
 
 function isRecord(value: Prisma.JsonValue): value is Prisma.JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function fileRenderMode(properties: Prisma.JsonValue) {
+  return isRecord(properties) && properties.fileRenderMode === "PLACE" ? "PLACE" : "ATTACH";
+}
+
+function fileMatchesSlot(file: { mimeType: string }, properties: Prisma.JsonValue) {
+  if (!isRecord(properties) || !Array.isArray(properties.acceptedMimeTypes)) return true;
+  return properties.acceptedMimeTypes.includes(file.mimeType);
 }
 
 function toNumber(value: DecimalLike) {
