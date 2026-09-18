@@ -89,19 +89,9 @@ export class GenerationRunnerService {
     }
 
     const startedAt = Date.now();
-    const assets = await this.readAssets(prepared.files);
     let pdf: Buffer;
     try {
-      const renderedMainPdf = await this.pdf.renderTemplateVersion(
-        {
-          ...prepared.version,
-          elements: prepared.elements,
-        } as unknown as PdfTemplateVersionRecord,
-        assets,
-      );
-      const mainPdf = await this.placeFiles(renderedMainPdf, prepared);
-      const attachments = await this.readAttachments(prepared.attachments);
-      pdf = await mergePdfBuffers([mainPdf, ...attachments]);
+      pdf = await this.renderPreparedPdf(prepared);
     } catch (error) {
       if (error instanceof PdfEngineError) {
         throw new BadRequestException("La plantilla no se puede renderizar.");
@@ -136,18 +126,8 @@ export class GenerationRunnerService {
   async preview(user: CurrentUser, body: unknown) {
     const input = parseGenerationInput(body);
     const prepared = await this.prepare(user, input, buildRequestHash(input), { allowExistingGeneration: false });
-    const assets = await this.readAssets(prepared.files);
     try {
-      const renderedMainPdf = await this.pdf.renderTemplateVersion(
-        {
-          ...prepared.version,
-          elements: prepared.elements,
-        } as unknown as PdfTemplateVersionRecord,
-        assets,
-      );
-      const mainPdf = await this.placeFiles(renderedMainPdf, prepared);
-      const attachments = await this.readAttachments(prepared.attachments);
-      return await mergePdfBuffers([mainPdf, ...attachments]);
+      return await this.renderPreparedPdf(prepared);
     } catch (error) {
       if (error instanceof PdfEngineError) {
         throw new BadRequestException("La plantilla no se puede renderizar.");
@@ -232,6 +212,20 @@ export class GenerationRunnerService {
 
       return { input, version, files, attachments: allAttachments, placedFiles, elements: resolvedElements, snapshot, fingerprint: fingerprint(version) };
     });
+  }
+
+  private async renderPreparedPdf(prepared: PreparedGeneration) {
+    const assets = await this.readAssets(prepared.files);
+    const renderedMainPdf = await this.pdf.renderTemplateVersion(
+      {
+        ...prepared.version,
+        elements: prepared.elements,
+      } as unknown as PdfTemplateVersionRecord,
+      assets,
+    );
+    const mainPdf = await this.placeFiles(renderedMainPdf, prepared);
+    const attachments = await this.readAttachments(prepared.attachments);
+    return await mergePdfBuffers([mainPdf, ...attachments]);
   }
 
   private async readAssets(files: PreparedGeneration["files"]) {

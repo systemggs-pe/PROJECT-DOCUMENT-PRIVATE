@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ImageCaptureActions } from "@/components/ImageCaptureActions";
 import { ImageCropEditor } from "@/components/ImageCropEditor";
+import { PdfViewer } from "@/components/PdfViewer";
 import { Button } from "@/components/ui/button";
 import { apiFetch, apiJson, downloadFile, downloadGeneration } from "@/lib/api";
 import type { Generation, TemplatePage } from "@/features/studio/model";
@@ -33,6 +34,7 @@ export default function GeneratePage() {
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
   const [fieldFiles, setFieldFiles] = useState<Record<string, AttachmentFile[]>>({});
   const [previewUrl, setPreviewUrl] = useState("");
+  const [previewStale, setPreviewStale] = useState(false);
   const requestKey = useRef(crypto.randomUUID());
   const previewUrls = useRef(new Set<string>());
   const pdfPreviewUrl = useRef("");
@@ -78,9 +80,24 @@ export default function GeneratePage() {
         return { ...current, [key]: selected };
       });
       setMessage("");
-      closePreview();
+      markPreviewStale();
     },
     onError: (error) => setMessage(error instanceof Error ? error.message : "No se pudo cargar la imagen."),
+  });
+  const fieldUploadMutation = useMutation({
+    mutationFn: async ({ key, file, slot }: { key: string; file: File; slot: NonNullable<typeof selectedVersion>["elements"][number] }) => {
+      validateFieldUpload(file, slot.properties);
+      const form = new FormData();
+      form.append("file", file);
+      if (slot.fileFieldId) form.append("fileFieldId", slot.fileFieldId);
+      const uploaded = await apiJson<StoredFile>("/files", { method: "POST", body: form });
+      return { key, file: toAttachmentFile(uploaded), maxFiles: fieldMaxFiles(slot) };
+    },
+    onSuccess: ({ key, file, maxFiles }) => {
+      selectFieldFile(key, file, maxFiles);
+      void cache.invalidateQueries({ queryKey: ["generation", "attachment-files"] });
+    },
+    onError: (error) => setMessage(error instanceof Error ? error.message : "No se pudo cargar el archivo."),
   });
 
   const previewMutation = useMutation({
@@ -102,6 +119,7 @@ export default function GeneratePage() {
       const nextUrl = URL.createObjectURL(blob);
       pdfPreviewUrl.current = nextUrl;
       setPreviewUrl(nextUrl);
+      setPreviewStale(false);
       setMessage("");
     },
     onError: (error) => setMessage(error instanceof Error ? error.message : "No se pudo previsualizar el PDF."),
@@ -138,7 +156,7 @@ export default function GeneratePage() {
       delete next[key];
       return next;
     });
-    closePreview();
+    markPreviewStale();
   }
 
   function addAttachment(file: AttachmentFile) {
@@ -148,12 +166,12 @@ export default function GeneratePage() {
     }
     setAttachments((current) => current.some((item) => item.id === file.id) ? current : [...current, file]);
     setMessage("");
-    closePreview();
+    markPreviewStale();
   }
 
   function removeAttachment(id: string) {
     setAttachments((current) => current.filter((item) => item.id !== id));
-    closePreview();
+    markPreviewStale();
   }
 
   function selectFieldFile(key: string, file: AttachmentFile, maxFiles = 1) {
@@ -163,7 +181,7 @@ export default function GeneratePage() {
       return { ...current, [key]: [...list, file] };
     });
     setMessage("");
-    closePreview();
+    markPreviewStale();
   }
 
   function removeFieldFile(key: string, fileId?: string) {
@@ -176,7 +194,7 @@ export default function GeneratePage() {
       } else delete next[key];
       return next;
     });
-    closePreview();
+    markPreviewStale();
   }
 
   function moveAttachment(id: string, direction: -1 | 1) {
@@ -192,7 +210,7 @@ export default function GeneratePage() {
       next[nextIndex] = currentItem;
       return next;
     });
-    closePreview();
+    markPreviewStale();
   }
 
   function buildGenerationPayload() {
@@ -218,6 +236,11 @@ export default function GeneratePage() {
       pdfPreviewUrl.current = "";
     }
     setPreviewUrl("");
+    setPreviewStale(false);
+  }
+
+  function markPreviewStale() {
+    if (previewUrl) setPreviewStale(true);
   }
 
   if (templates.isPending) return <div className="loading-row" role="status"><LoaderCircle className="size-4 animate-spin" />Cargando plantillas activas...</div>;
@@ -339,6 +362,11 @@ export default function GeneratePage() {
                           {options.map((file) => <option key={file.id} value={file.id}>{file.originalName}</option>)}
                         </select>
                       </label>
+                      <label className={`slot-file-button ${selected.length >= maxFiles || fieldUploadMutation.isPending ? "is-disabled" : ""}`}>
+                        <input type="file" accept={acceptForSlot(slot.properties)} disabled={selected.length >= maxFiles || fieldUploadMutation.isPending} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (!file) return; if (selected.length >= maxFiles) { setMessage(`Puedes subir un maximo de ${maxFiles} archivo(s) para ${slot.name}.`); return; } fieldUploadMutation.mutate({ key: slot.key!, file, slot }); }} />
+                        <Paperclip className="size-4" />
+                        <span>{fieldUploadMutation.isPending ? "Subiendo archivo..." : "Subir desde mi carpeta"}</span>
+                      </label>
                     </div>;
                   })}
                 </div>
@@ -355,7 +383,7 @@ export default function GeneratePage() {
                   {variableKeys.map((key) => (
                     <label className="field" key={key}>
                       <span>{humanizeKey(key)}</span>
-                      <input value={variables[key] ?? ""} maxLength={500} placeholder={`Valor para ${key}`} onChange={(event) => { closePreview(); setVariables((current) => ({ ...current, [key]: event.target.value })); }} />
+                      <input value={variables[key] ?? ""} maxLength={500} placeholder={`Valor para ${key}`} onChange={(event) => { markPreviewStale(); setVariables((current) => ({ ...current, [key]: event.target.value })); }} />
                     </label>
                   ))}
                 </div>
@@ -367,7 +395,7 @@ export default function GeneratePage() {
           <div className="generation-actions">
             <Button variant="ghost" onClick={() => { setMessage(""); previewMutation.mutate(); }} disabled={previewMutation.isPending || generateMutation.isPending || uploadMutation.isPending || !selectedVersion}>
               <LoaderCircle className={`mr-2 size-4 ${previewMutation.isPending ? "animate-spin" : "hidden"}`} />
-              Previsualizar
+              {previewUrl && previewStale ? "Actualizar previsualizacion" : previewMutation.isPending ? "Generando preview..." : "Previsualizar PDF"}
             </Button>
             <Button onClick={() => { setMessage(""); generateMutation.mutate(); }} disabled={generateMutation.isPending || previewMutation.isPending || uploadMutation.isPending || !selectedVersion}>
               <LoaderCircle className={`mr-2 size-4 ${generateMutation.isPending ? "animate-spin" : "hidden"}`} />
@@ -376,9 +404,9 @@ export default function GeneratePage() {
             <span className="generation-action-hint">El PDF se guarda en archivos privados y recibe un correlativo unico.</span>
           </div>
 
-          {previewUrl && <section className="generation-preview"><div className="section-heading"><div><p className="eyebrow">Preview</p><h3>Previsualizacion del PDF</h3></div><Button type="button" variant="ghost" onClick={closePreview}>Cerrar preview</Button></div><iframe src={previewUrl} title="Previsualizacion del PDF generado" /></section>}
+          {previewUrl && <section className={`generation-preview ${previewStale ? "is-stale" : ""}`}><div className="section-heading"><div><p className="eyebrow">Preview real</p><h3>Previsualizacion del PDF</h3>{previewStale && <p className="panel-hint">La previsualizacion esta desactualizada. Actualizala antes de generar desde esta vista.</p>}</div><div className="preview-actions"><Button type="button" variant="ghost" onClick={closePreview}>Volver a editar</Button><Button type="button" variant="ghost" onClick={() => { setMessage(""); previewMutation.mutate(); }} disabled={previewMutation.isPending}>{previewMutation.isPending ? "Actualizando..." : "Actualizar preview"}</Button><Button type="button" onClick={() => { setMessage(""); generateMutation.mutate(); }} disabled={previewStale || generateMutation.isPending || previewMutation.isPending}>Generar PDF</Button></div></div><PdfViewer url={previewUrl} title={selectedTemplate.name} fileName="preview.pdf" sections={previewSections(selectedVersion, attachments, fieldFiles)} onDownload={() => downloadObjectUrl(previewUrl, "preview.pdf")} /></section>}
           {result && <section className="generation-result" role="status"><div><p className="eyebrow">Documento listo</p><h3>{result.number}</h3><p>La generacion se completo con la version {selectedVersion?.versionNumber} de {selectedTemplate.name}.</p></div><Button onClick={() => void downloadGeneration(result.id, `${result.number}.pdf`)}><Download className="mr-2 size-4" />Descargar PDF</Button></section>}
-          {cropTarget && <ImageCropEditor file={cropTarget.file} contextName={slots.find((slot) => slot.key === cropTarget.key)?.name ?? cropTarget.file.name} onCancel={() => setCropTarget(null)} onApply={(file) => { const key = cropTarget.key; const slot = slots.find((entry) => entry.key === key); setCropTarget(null); closePreview(); uploadMutation.mutate({ key, file, fileFieldId: slot?.fileFieldId }); }} />}
+          {cropTarget && <ImageCropEditor file={cropTarget.file} contextName={slots.find((slot) => slot.key === cropTarget.key)?.name ?? cropTarget.file.name} onCancel={() => setCropTarget(null)} onApply={(file) => { const key = cropTarget.key; const slot = slots.find((entry) => entry.key === key); setCropTarget(null); markPreviewStale(); uploadMutation.mutate({ key, file, fileFieldId: slot?.fileFieldId }); }} />}
         </>
       )}
     </div>
@@ -400,7 +428,11 @@ function humanizeKey(value: string) {
 }
 
 function attachmentCandidates(files: StoredFile[]): AttachmentFile[] {
-  return files.filter((file) => file.type === "PDF" || file.type === "DOCUMENT").map((file) => ({ id: file.id, originalName: file.originalName, type: file.type, mimeType: file.mimeType, sizeBytes: file.sizeBytes }));
+  return files.filter((file) => file.type === "PDF" || file.type === "DOCUMENT").map(toAttachmentFile);
+}
+
+function toAttachmentFile(file: StoredFile): AttachmentFile {
+  return { id: file.id, originalName: file.originalName, type: file.type, mimeType: file.mimeType, sizeBytes: file.sizeBytes };
 }
 
 function fileMatchesSlot(file: AttachmentFile, properties: { acceptedMimeTypes?: string[]; maxSizeBytes?: number }) {
@@ -412,4 +444,29 @@ function fileMatchesSlot(file: AttachmentFile, properties: { acceptedMimeTypes?:
 function fieldMaxFiles(slot: { properties: { fileRenderMode?: string; maxFiles?: number } }) {
   if (slot.properties.fileRenderMode === "PLACE") return 1;
   return Math.max(1, Math.min(20, Math.round(slot.properties.maxFiles ?? 1)));
+}
+
+function validateFieldUpload(file: File, properties: { acceptedMimeTypes?: string[]; maxSizeBytes?: number }) {
+  if (properties.acceptedMimeTypes?.length && !properties.acceptedMimeTypes.includes(file.type)) throw new Error(`Este campo acepta unicamente: ${properties.acceptedMimeTypes.join(", ")}.`);
+  if (properties.maxSizeBytes && file.size > properties.maxSizeBytes) throw new Error(`El archivo supera el limite de ${Math.round(properties.maxSizeBytes / 1024 / 1024)} MB.`);
+}
+
+function acceptForSlot(properties: { acceptedMimeTypes?: string[] }) {
+  return properties.acceptedMimeTypes?.length ? properties.acceptedMimeTypes.join(",") : ".pdf,.doc,.docx";
+}
+
+function previewSections(version: TemplatePage["items"][number]["versions"][number] | undefined, attachments: AttachmentFile[], fieldFiles: Record<string, AttachmentFile[]>) {
+  const fieldFileCount = Object.values(fieldFiles).reduce((total, files) => total + files.length, 0);
+  return [
+    { label: "Documento principal", detail: `${version?.pageCount ?? 1} pagina(s)` },
+    { label: "Campos de archivo", detail: `${fieldFileCount} archivo(s)` },
+    { label: "Anexos", detail: `${attachments.length} archivo(s)` },
+  ];
+}
+
+function downloadObjectUrl(url: string, name: string) {
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = name;
+  anchor.click();
 }

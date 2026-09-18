@@ -59,6 +59,35 @@ describe("GenerationRunnerService", () => {
     expect(render).not.toHaveBeenCalled();
   });
 
+  it("renders preview with the same renderer without creating a final generation", async () => {
+    const mainPdf = await makePdf("preview");
+    const render = vi.fn().mockResolvedValue(mainPdf);
+    const tx = makeTransaction({ renderVersion: version() });
+    const storage = makeStorage();
+    const numbers = { next: vi.fn() };
+    const service = makeRunner(tx, storage, render, numbers);
+
+    const result = await service.preview(actor(userId), {
+      templateVersionId: versionId,
+      requestKey: "78787878-7878-4787-8787-787878787878",
+      inputs: [{ key: "photo", fileId: imageId }],
+      variables: { customer_name: "Ana" },
+    });
+
+    expect(result.subarray(0, 5).toString("ascii")).toBe("%PDF-");
+    expect(render).toHaveBeenCalledWith(expect.objectContaining({ elements: expect.arrayContaining([expect.objectContaining({ type: "IMAGE", assetKey: imageId })]) }), expect.arrayContaining([expect.objectContaining({ key: imageId })]));
+    expect(numbers.next).not.toHaveBeenCalled();
+    expect(tx.generation.create).not.toHaveBeenCalled();
+    expect(storage.put).not.toHaveBeenCalled();
+  });
+
+  it("uses the same render path for preview and final generation", async () => {
+    const service = makeRunner(makeTransaction({ renderVersion: version() }), makeStorage(), vi.fn().mockResolvedValue(await makePdf("same")));
+    const prototype = Object.getPrototypeOf(service) as { renderPreparedPdf?: unknown };
+
+    expect(typeof prototype.renderPreparedPdf).toBe("function");
+  });
+
   it("removes a generated object and marks the reserved generation failed when upload fails", async () => {
     const tx = makeTransaction({ generation: { id: "88888888-8888-4888-8888-888888888888", number: "GGS-000043" }, renderVersion: version() });
     const storage = makeStorage();

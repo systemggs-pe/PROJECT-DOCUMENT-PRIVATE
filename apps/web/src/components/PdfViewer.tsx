@@ -87,8 +87,13 @@ export function PdfViewer({ url, title, fileName, sections = [], onDownload }: P
     setZoom((current) => Math.min(Math.max(Number((current + delta).toFixed(2)), 0.5), 2.5));
   }
 
-  async function enterFullscreen() {
-    await rootRef.current?.requestFullscreen?.();
+  async function fitWidth() {
+    if (!document || !rootRef.current) return;
+    const stage = rootRef.current.querySelector(".pdf-page-stage");
+    const page = await document.getPage(pageNumber);
+    const viewport = page.getViewport({ scale: 1 });
+    const availableWidth = Math.max(240, (stage?.clientWidth ?? rootRef.current.clientWidth) - 48);
+    setZoom(Math.min(Math.max(Number((availableWidth / viewport.width).toFixed(2)), 0.5), 2.5));
   }
 
   return (
@@ -106,7 +111,7 @@ export function PdfViewer({ url, title, fileName, sections = [], onDownload }: P
           <Button variant="ghost" size="icon" aria-label="Reducir zoom" disabled={zoom <= 0.5} onClick={() => changeZoom(-0.1)}><ZoomOut className="size-4" /></Button>
           <span>{Math.round(zoom * 100)}%</span>
           <Button variant="ghost" size="icon" aria-label="Aumentar zoom" disabled={zoom >= 2.5} onClick={() => changeZoom(0.1)}><ZoomIn className="size-4" /></Button>
-          <Button variant="ghost" size="icon" aria-label="Pantalla completa" onClick={() => void enterFullscreen()}><Maximize2 className="size-4" /></Button>
+          <Button variant="ghost" size="icon" aria-label="Ajustar ancho" onClick={() => void fitWidth()}><Maximize2 className="size-4" /></Button>
           {onDownload && <Button variant="ghost" size="icon" aria-label="Descargar PDF" onClick={onDownload}><Download className="size-4" /></Button>}
         </div>
       </div>
