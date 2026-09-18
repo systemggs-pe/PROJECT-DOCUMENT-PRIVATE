@@ -20,7 +20,7 @@ export function Topbar() {
   }
 
   return (
-    <header className="border-b border-[var(--line)] bg-[var(--surface-elevated)]">
+    <header className="desktop-topbar border-b border-[var(--line)] bg-[var(--surface-elevated)]">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <div>
           <p className="text-sm text-[var(--muted)]">GGS Document Studio</p>
