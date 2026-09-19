@@ -8,6 +8,7 @@ import { systemMetadata } from "@/config/system-metadata";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
 import { useNavigationStore, type NavigationSection } from "@/stores/navigation-store";
+import { navigateToSection, sectionOrder } from "./navigation";
 
 interface SidebarProps {
   isMobile?: boolean;
@@ -22,8 +23,6 @@ interface SidebarProps {
     }
   >>;
 }
-
-const sectionOrder: NavigationSection[] = ["dashboard", "generate", "generations", "templates", "files", "fileFields", "company", "users", "roles", "audit", "support", "settings"];
 
 export function Sidebar({ sections, isMobile = false, onClose, onNavigate }: SidebarProps) {
   const queryClient = useQueryClient();
@@ -75,8 +74,7 @@ export function Sidebar({ sections, isMobile = false, onClose, onNavigate }: Sid
                 aria-current={isActive ? "page" : undefined}
                 onClick={() => {
                   setCurrentSection(key);
-                  const path = key === "templates" ? "/templates" : key === "generate" ? "/generate" : key === "fileFields" ? "/file-fields" : key === "files" ? "/files" : key === "generations" ? "/generations" : key === "company" ? "/company" : key === "users" ? "/users" : key === "roles" ? "/roles" : key === "audit" ? "/audit" : key === "support" ? "/support" : key === "settings" ? "/settings" : "/";
-                  if (window.location.pathname !== path) window.history.pushState(null, "", path);
+                  navigateToSection(key);
                   onNavigate?.();
                 }}
               >

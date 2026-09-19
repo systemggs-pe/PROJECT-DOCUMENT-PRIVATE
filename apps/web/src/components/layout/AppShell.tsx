@@ -6,8 +6,10 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { SystemFooter } from "@/components/layout/SystemFooter";
 import { Topbar } from "@/components/layout/Topbar";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import type { NavigationSection } from "@/stores/navigation-store";
 import { useNavigationStore } from "@/stores/navigation-store";
+import { mobilePrimarySections, mobileSectionLabels, navigateToSection } from "./navigation";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -24,6 +26,7 @@ interface AppShellProps {
 export function AppShell({ children, sections }: AppShellProps) {
   const drawerId = useId();
   const currentSection = useNavigationStore((state) => state.currentSection);
+  const setCurrentSection = useNavigationStore((state) => state.setCurrentSection);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const currentTitle = sections[currentSection]?.title ?? "Dashboard";
 
@@ -54,13 +57,22 @@ export function AppShell({ children, sections }: AppShellProps) {
           <Sidebar sections={sections} onNavigate={() => setMobileMenuOpen(false)} onClose={() => setMobileMenuOpen(false)} isMobile />
         </div>
         <main className="app-main" id="main-content" tabIndex={-1}>
-          <Topbar />
+          <Topbar title={currentTitle} />
           <div className="app-content">
             {children}
             <SystemFooter />
           </div>
         </main>
       </div>
+      <MobileBottomNav
+        sections={sections}
+        currentSection={currentSection}
+        onMore={() => setMobileMenuOpen(true)}
+        onNavigate={(section) => {
+          setCurrentSection(section);
+          navigateToSection(section);
+        }}
+      />
     </div>
   );
 }
@@ -68,14 +80,68 @@ export function AppShell({ children, sections }: AppShellProps) {
 function MobileHeader({ title, drawerId, isOpen, onOpen }: { title: string; drawerId: string; isOpen: boolean; onOpen: () => void }) {
   return (
     <header className="mobile-header">
-      <Button type="button" variant="ghost" size="icon" aria-label="Abrir menu" aria-controls={drawerId} aria-expanded={isOpen} onClick={onOpen}>
+      <div className="mobile-header-title">
+        <span className="mobile-section-kicker">GGS Document Studio</span>
+        <strong title={title}>{title}</strong>
+      </div>
+      <Button type="button" variant="ghost" size="icon" aria-label="Abrir mas opciones" aria-controls={drawerId} aria-expanded={isOpen} onClick={onOpen}>
         <Menu className="size-5" aria-hidden={true} />
       </Button>
-      <div className="mobile-header-brand" aria-label="GGS Document Studio">
-        <span className="mobile-logo">GGS</span>
-        <span>Document Studio</span>
-      </div>
-      <span className="mobile-section-pill" title={title}>{title}</span>
     </header>
+  );
+}
+
+function MobileBottomNav({
+  currentSection,
+  onMore,
+  onNavigate,
+  sections,
+}: {
+  currentSection: NavigationSection;
+  onMore: () => void;
+  onNavigate: (section: NavigationSection) => void;
+  sections: Partial<Record<
+    NavigationSection,
+    {
+      title: string;
+      description: string;
+      icon: LucideIcon;
+    }
+  >>;
+}) {
+  const primaryItems = mobilePrimarySections.flatMap((key) => {
+    const section = sections[key];
+    return section ? [{ key, section }] : [];
+  });
+  const moreIsActive = !primaryItems.some((item) => item.key === currentSection);
+
+  return (
+    <nav className="mobile-bottom-nav" aria-label="Navegacion movil">
+      {primaryItems.map(({ key, section }) => {
+        const Icon = section.icon;
+        const isActive = key === currentSection;
+        return (
+          <button
+            key={key}
+            type="button"
+            className={cn("mobile-bottom-nav-item", isActive && "is-active")}
+            aria-current={isActive ? "page" : undefined}
+            onClick={() => onNavigate(key)}
+          >
+            <Icon className="size-5" aria-hidden={true} />
+            <span>{mobileSectionLabels[key] ?? section.title}</span>
+          </button>
+        );
+      })}
+      <button
+        type="button"
+        className={cn("mobile-bottom-nav-item", moreIsActive && "is-active")}
+        aria-label="Abrir mas secciones"
+        onClick={onMore}
+      >
+        <Menu className="size-5" aria-hidden={true} />
+        <span>Mas</span>
+      </button>
+    </nav>
   );
 }

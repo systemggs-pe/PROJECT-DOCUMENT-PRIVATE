@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/stores/auth-store";
 import { useState } from "react";
 
-export function Topbar() {
+export function Topbar({ title = "Estudio documental" }: { title?: string }) {
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const signOut = useAuthStore((state) => state.signOut);
@@ -20,14 +20,14 @@ export function Topbar() {
   }
 
   return (
-    <header className="desktop-topbar border-b border-[var(--line)] bg-[var(--surface-elevated)]">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+    <header className="desktop-topbar">
+      <div className="desktop-topbar-inner">
         <div>
-          <p className="text-sm text-[var(--muted)]">GGS Document Studio</p>
-          <h1 className="text-xl font-semibold tracking-normal">Estudio documental</h1>
+          <p className="desktop-topbar-kicker">GGS Document Studio</p>
+          <h1>{title}</h1>
         </div>
         <div className="flex items-center gap-2">
-          <div className="hidden items-center gap-2 rounded-md border border-[var(--line)] px-3 py-2 text-sm text-[var(--muted)] md:flex">
+          <div className="desktop-account-pill">
             <ShieldCheck className="size-4 text-[var(--success)]" aria-hidden={true} />
             <span>{user?.email ?? "Sesión activa"}</span>
           </div>

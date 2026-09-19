@@ -243,6 +243,14 @@ export default function GeneratePage() {
     if (previewUrl) setPreviewStale(true);
   }
 
+  const generationSteps = [
+    { label: "Plantilla", complete: Boolean(selectedTemplate && selectedVersion) },
+    { label: "Datos", complete: variableKeys.every((key) => Boolean(variables[key]?.trim())) },
+    { label: "Archivos", complete: slots.every((slot) => !slot.required || Boolean(files[slot.key!])) && fileSlots.every((slot) => !slot.required || Boolean(fieldFiles[slot.key!]?.length)) },
+    { label: "Revisar", complete: Boolean(previewUrl && !previewStale) },
+    { label: "Generar", complete: Boolean(result) },
+  ];
+
   if (templates.isPending) return <div className="loading-row" role="status"><LoaderCircle className="size-4 animate-spin" />Cargando plantillas activas...</div>;
   if (templates.isError) return <section className="empty-state" role="alert"><h2>No se pudieron cargar las plantillas</h2><p>{templates.error.message}</p><Button onClick={() => void templates.refetch()}>Reintentar</Button></section>;
 
@@ -256,6 +264,10 @@ export default function GeneratePage() {
         </div>
         <FileOutput className="generate-heading-icon" aria-hidden={true} />
       </div>
+
+      <ol className="generation-stepper" aria-label="Proceso de generacion">
+        {generationSteps.map((step, index) => <li className={step.complete ? "is-complete" : ""} key={step.label}><span>{index + 1}</span>{step.label}</li>)}
+      </ol>
 
       {!selectedTemplate ? (
         <section className="empty-state"><FileOutput className="size-7" /><h3>No hay plantillas activas</h3><p>Activa una plantilla desde Plantillas para empezar a generar.</p></section>
