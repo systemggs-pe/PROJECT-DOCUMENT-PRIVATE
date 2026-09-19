@@ -241,8 +241,8 @@ export function AuthPage() {
               {isRegister ? "Ya tengo cuenta" : "Crear cuenta"}
             </button>
           </div>
+          <SystemFooter showSupportLink={false} />
         </div>
-        <SystemFooter compact showSupportLink={false} />
       </section>
     </main>
   );

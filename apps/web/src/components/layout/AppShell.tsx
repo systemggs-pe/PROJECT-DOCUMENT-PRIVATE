@@ -43,6 +43,7 @@ export function AppShell({ children, sections }: AppShellProps) {
 
   return (
     <div className="app-shell bg-[var(--surface)] text-[var(--ink)]">
+      <a className="skip-link" href="#main-content">Saltar al contenido</a>
       <MobileHeader title={currentTitle} drawerId={drawerId} isOpen={mobileMenuOpen} onOpen={() => setMobileMenuOpen(true)} />
       <div className="app-layout">
         <div className="desktop-sidebar">
@@ -52,7 +53,7 @@ export function AppShell({ children, sections }: AppShellProps) {
         <div className={`mobile-drawer ${mobileMenuOpen ? "is-open" : ""}`} id={drawerId} role="dialog" aria-modal="true" aria-label="Menu principal" aria-hidden={!mobileMenuOpen} inert={!mobileMenuOpen}>
           <Sidebar sections={sections} onNavigate={() => setMobileMenuOpen(false)} onClose={() => setMobileMenuOpen(false)} isMobile />
         </div>
-        <main className="app-main">
+        <main className="app-main" id="main-content" tabIndex={-1}>
           <Topbar />
           <div className="app-content">
             {children}

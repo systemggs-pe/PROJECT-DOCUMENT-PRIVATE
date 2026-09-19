@@ -19,6 +19,7 @@
   --success: #23865b;
   --danger: #bb3f3a;
   --focus: #2f7d5e;
+  --shadow-soft: 0 10px 28px rgb(23 33 28 / 10%);
 }
 
 * {
@@ -34,11 +35,26 @@ body {
   overflow-x: hidden;
 }
 
+::selection {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--ink);
+}
+
 button,
 input,
 textarea,
 select {
   font: inherit;
+}
+
+button,
+a,
+input,
+select,
+textarea,
+summary,
+label {
+  touch-action: manipulation;
 }
 
 button,
@@ -56,6 +72,27 @@ select:focus-visible,
 summary:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
+}
+
+.skip-link {
+  position: fixed;
+  z-index: 100;
+  top: calc(0.5rem + env(safe-area-inset-top));
+  left: 0.75rem;
+  transform: translateY(-160%);
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: var(--shadow-soft);
+  transition: transform 160ms ease;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
 }
 
 .app-shell {
@@ -205,7 +242,7 @@ summary:focus-visible {
   top: 0;
   bottom: 0;
   left: 0;
-  width: min(84vw, 320px);
+  width: min(92vw, 340px);
   height: 100vh;
   height: 100dvh;
   transform: translateX(-100%);
@@ -818,6 +855,12 @@ summary:focus-visible {
 .support-card-heading h3 {
   font-size: 1rem;
   font-weight: 700;
+}
+
+.mobile-header-brand > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .support-list {
@@ -2485,15 +2528,52 @@ summary:focus-visible {
 }
 
 @media (max-width: 640px) {
+  body {
+    font-size: 16px;
+  }
+
   .page-heading,
   .studio-heading {
     align-items: stretch;
     flex-direction: column;
+    gap: 0.7rem;
   }
 
   .page-heading > div:last-child,
   .studio-heading > button {
     width: 100%;
+  }
+
+  .page-heading h2,
+  .studio-heading h2 {
+    font-size: 1.35rem;
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+
+  .eyebrow {
+    font-size: 0.68rem;
+  }
+
+  .field input:not([type="checkbox"]):not([type="color"]),
+  .field textarea,
+  .field select,
+  .property-panel > select,
+  .document-desk select,
+  .document-desk label > select,
+  .history-search input,
+  .admin-actions select {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .inline-check {
+    min-height: 44px;
+  }
+
+  .inline-check input[type="checkbox"] {
+    width: 1.15rem;
+    height: 1.15rem;
   }
 
   .template-row {
@@ -2531,8 +2611,8 @@ summary:focus-visible {
   }
 
   .document-desk {
-    min-height: 420px;
-    padding: 1rem;
+    min-height: 62svh;
+    padding: 0.75rem;
   }
 
   .generation-selects,
@@ -2543,31 +2623,80 @@ summary:focus-visible {
   }
 
   .inline-dialog-backdrop {
-    padding: 0.35rem;
+    align-items: end;
+    padding: 0.5rem;
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
+
+  .inline-dialog {
+    width: 100%;
+    max-height: calc(100dvh - 1rem - env(safe-area-inset-bottom));
+    overflow: auto;
+    padding: 1rem;
+  }
+
+  .inline-dialog-actions {
+    position: sticky;
+    bottom: 0;
+    flex-direction: column-reverse;
+    padding-top: 0.5rem;
+    background: var(--panel);
+  }
+
+  .inline-dialog-actions button {
+    width: 100%;
   }
 
   .image-crop-dialog {
-    width: calc(100vw - 0.7rem);
-    height: calc(100vh - 0.7rem);
+    width: 100vw;
+    height: 100dvh;
     min-height: 0;
-    padding: 0.75rem;
+    padding: calc(0.75rem + env(safe-area-inset-top)) 0.75rem calc(0.75rem + env(safe-area-inset-bottom));
+    border: 0;
   }
 
   .image-crop-header {
     gap: 0.5rem;
   }
 
+  .image-crop-header p:not(.eyebrow) {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
   .image-crop-stage {
-    min-height: 300px;
+    min-height: min(48svh, 340px);
     padding: 0.5rem;
   }
+
+  .image-crop-handle {
+    width: 34px;
+    height: 34px;
+  }
+
+  .image-crop-handle.is-top-left { left: -17px; top: -17px; }
+  .image-crop-handle.is-top { left: calc(50% - 17px); top: -17px; }
+  .image-crop-handle.is-top-right { right: -17px; top: -17px; }
+  .image-crop-handle.is-right { right: -17px; top: calc(50% - 17px); }
+  .image-crop-handle.is-bottom-right { right: -17px; bottom: -17px; }
+  .image-crop-handle.is-bottom { left: calc(50% - 17px); bottom: -17px; }
+  .image-crop-handle.is-bottom-left { left: -17px; bottom: -17px; }
+  .image-crop-handle.is-left { left: -17px; top: calc(50% - 17px); }
 
   .image-crop-controls {
     grid-template-columns: 1fr;
   }
 
   .image-crop-actions {
+    position: sticky;
+    bottom: calc(-0.75rem - env(safe-area-inset-bottom));
     justify-content: stretch;
+    margin: 0 -0.75rem calc(-0.75rem - env(safe-area-inset-bottom));
+    padding: 0.75rem 0.75rem max(0.75rem, env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    background: var(--panel);
   }
 
   .image-crop-actions button {
@@ -2579,8 +2708,71 @@ summary:focus-visible {
     flex-direction: column;
   }
 
+  .generation-actions {
+    position: sticky;
+    z-index: 12;
+    bottom: 0;
+    display: grid;
+    grid-template-columns: 1fr;
+    margin: 0 -0.9rem;
+    padding: 0.75rem 0.9rem max(0.75rem, env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    background: color-mix(in srgb, var(--surface-elevated) 96%, transparent);
+    box-shadow: 0 -10px 26px rgb(23 33 28 / 10%);
+  }
+
+  .generation-actions button {
+    width: 100%;
+  }
+
+  .generation-action-hint {
+    text-align: center;
+  }
+
+  .generation-slot,
+  .attachment-row,
+  .attachment-option {
+    padding: 0.85rem;
+  }
+
+  .attachment-row,
+  .attachment-option,
+  .slot-selected {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .attachment-row > span,
+  .attachment-option > span,
+  .slot-heading > span,
+  .slot-selected span,
+  .upload-slot small {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .attachment-row .file-actions,
+  .file-actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .image-capture-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .image-capture-button,
+  .slot-file-button {
+    width: 100%;
+    min-height: 48px;
+  }
+
   .generation-preview {
-    padding: 0.65rem;
+    margin: 0 -0.9rem;
+    padding: 0.75rem 0.65rem;
+    border-right: 0;
+    border-left: 0;
   }
 
   .generation-preview .section-heading,
@@ -2594,21 +2786,44 @@ summary:focus-visible {
     justify-content: stretch;
   }
 
-  .preview-actions button {
+  .preview-actions button,
+  .pdf-viewer-actions button {
     flex: 1 1 9rem;
   }
 
   .pdf-viewer {
-    min-height: 82vh;
+    min-height: calc(100dvh - 92px);
+    border-right: 0;
+    border-left: 0;
+  }
+
+  .pdf-viewer-toolbar {
+    position: sticky;
+    top: calc(58px + env(safe-area-inset-top));
+  }
+
+  .pdf-viewer-toolbar h3 {
+    font-size: 1rem;
+  }
+
+  .pdf-viewer-sections {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .pdf-viewer-sections span {
+    flex: 0 0 auto;
   }
 
   .pdf-viewer-body {
     grid-template-columns: 1fr;
+    min-height: 0;
   }
 
   .pdf-thumbnails {
     grid-auto-flow: column;
-    grid-auto-columns: 72px;
+    grid-auto-columns: 68px;
     max-height: none;
     overflow-x: auto;
     border-right: 0;
@@ -2616,8 +2831,10 @@ summary:focus-visible {
   }
 
   .pdf-page-stage {
-    max-height: 64vh;
-    padding: 0.75rem;
+    min-height: 58svh;
+    max-height: 70svh;
+    padding: 0.65rem;
+    place-items: start center;
   }
 
   .history-filter-grid,
@@ -2640,14 +2857,66 @@ summary:focus-visible {
 
   .admin-table,
   .company-table {
-    overflow-x: auto;
+    display: grid;
+    gap: 0.75rem;
+    overflow: visible;
+    border: 0;
+    background: transparent;
   }
 
   .admin-head,
+  .company-head {
+    display: none;
+  }
+
   .admin-row,
-  .company-head,
   .company-row {
-    min-width: 780px;
+    display: grid;
+    grid-template-columns: 1fr;
+    min-width: 0;
+    gap: 0.7rem;
+    padding: 0.9rem;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .admin-row > span,
+  .company-row > span {
+    display: grid;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .admin-row > span::before,
+  .company-row > span::before {
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .admin-row > span:nth-child(1)::before { content: "Usuario"; }
+  .admin-row > span:nth-child(2)::before { content: "Roles"; }
+  .admin-row > span:nth-child(3)::before { content: "Estado"; }
+  .admin-row > span:nth-child(4)::before { content: "Ultimo acceso"; }
+  .admin-row > span:nth-child(5)::before { content: "Acciones"; }
+  .company-row > span:nth-child(1)::before { content: "Empresa"; }
+  .company-row > span:nth-child(2)::before { content: "Estado"; }
+  .company-row > span:nth-child(3)::before { content: "Usuarios"; }
+  .company-row > span:nth-child(4)::before { content: "Plantillas"; }
+  .company-row > span:nth-child(5)::before { content: "Archivos"; }
+  .company-row > span:nth-child(6)::before { content: "Acciones"; }
+
+  .admin-actions {
+    justify-content: stretch;
+  }
+
+  .admin-actions button,
+  .admin-actions select {
+    flex: 1 1 44px;
+    min-height: 44px;
   }
 
   .history-head { display: none; }
@@ -2688,6 +2957,26 @@ summary:focus-visible {
     grid-template-columns: 1fr;
   }
 
+  .company-form,
+  .support-card,
+  .generation-inputs,
+  .generation-config,
+  .property-panel {
+    padding: 0.9rem;
+  }
+
+  .section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .section-count {
+    align-self: flex-start;
+    padding: 0.2rem 0.45rem;
+    border: 1px solid var(--line);
+    background: var(--surface-elevated);
+  }
+
   .company-summary article {
     border-right: 0;
     border-bottom: 1px solid var(--line);
@@ -2695,6 +2984,41 @@ summary:focus-visible {
 
   .company-summary article:last-child {
     border-bottom: 0;
+  }
+
+  .role-row {
+    grid-template-columns: 1fr;
+    gap: 0.45rem;
+    padding: 0.85rem;
+  }
+
+  .permission-group {
+    padding: 0.75rem;
+  }
+}
+
+@media (max-width: 640px) and (orientation: landscape) {
+  .image-crop-dialog {
+    gap: 0.55rem;
+  }
+
+  .image-crop-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 0.65fr);
+    grid-template-rows: minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .image-crop-stage {
+    min-height: 0;
+  }
+
+  .image-crop-controls {
+    max-height: calc(100dvh - 9rem);
+    overflow: auto;
+  }
+
+  .pdf-page-stage {
+    max-height: 62svh;
   }
 }
 

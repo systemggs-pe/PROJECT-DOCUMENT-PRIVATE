@@ -84,7 +84,7 @@ function CompanyForm({ company }: { company: CompanySettings }) {
       <div className="section-heading"><div><p className="eyebrow">Contacto</p><h3>Canales institucionales</h3></div></div>
       <div className="company-form-grid">
         <Field label="Correo institucional" type="email" value={draft.email ?? ""} readOnly={!canUpdate} onChange={(value) => patch("email", value)} />
-        <Field label="Telefono" value={draft.phone ?? ""} readOnly={!canUpdate} onChange={(value) => patch("phone", value)} />
+        <Field label="Telefono" type="tel" value={draft.phone ?? ""} readOnly={!canUpdate} onChange={(value) => patch("phone", value)} />
         <Field className="company-form-wide" label="Sitio web" type="url" value={draft.website ?? ""} readOnly={!canUpdate} onChange={(value) => patch("website", value)} />
       </div>
     </section>
@@ -134,7 +134,7 @@ function CompanyForm({ company }: { company: CompanySettings }) {
 }
 
 function Field({ label, value, onChange, readOnly, required = false, type = "text", className = "" }: { label: string; value: string; onChange: (value: string) => void; readOnly: boolean; required?: boolean; type?: string; className?: string }) {
-  return <label className={`field ${className}`}><span>{label}</span><input type={type} value={value} required={required} readOnly={readOnly} onChange={(event) => onChange(event.target.value)} /></label>;
+  return <label className={`field ${className}`}><span>{label}</span><input type={type} inputMode={type === "tel" ? "tel" : undefined} autoComplete={type === "email" ? "email" : type === "tel" ? "tel" : type === "url" ? "url" : undefined} value={value} required={required} readOnly={readOnly} onChange={(event) => onChange(event.target.value)} /></label>;
 }
 
 function TextArea({ label, value, onChange, readOnly }: { label: string; value: string; onChange: (value: string) => void; readOnly: boolean }) {
