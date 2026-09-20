@@ -28,7 +28,7 @@ export function AppShell({ children, sections }: AppShellProps) {
   const currentSection = useNavigationStore((state) => state.currentSection);
   const setCurrentSection = useNavigationStore((state) => state.setCurrentSection);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const currentTitle = sections[currentSection]?.title ?? "Dashboard";
+  const currentTitle = sections[currentSection]?.title ?? "Panel principal";
 
   useEffect(() => {
     if (!mobileMenuOpen) return;
@@ -52,8 +52,8 @@ export function AppShell({ children, sections }: AppShellProps) {
         <div className="desktop-sidebar">
           <Sidebar sections={sections} />
         </div>
-        <button type="button" className={`mobile-drawer-overlay ${mobileMenuOpen ? "is-open" : ""}`} aria-label="Cerrar menu" onClick={() => setMobileMenuOpen(false)} />
-        <div className={`mobile-drawer ${mobileMenuOpen ? "is-open" : ""}`} id={drawerId} role="dialog" aria-modal="true" aria-label="Menu principal" aria-hidden={!mobileMenuOpen} inert={!mobileMenuOpen}>
+        <button type="button" className={`mobile-drawer-overlay ${mobileMenuOpen ? "is-open" : ""}`} aria-label="Cerrar menú" onClick={() => setMobileMenuOpen(false)} />
+        <div className={`mobile-drawer ${mobileMenuOpen ? "is-open" : ""}`} id={drawerId} role="dialog" aria-modal="true" aria-label="Menú principal" aria-hidden={!mobileMenuOpen} inert={!mobileMenuOpen}>
           <Sidebar sections={sections} onNavigate={() => setMobileMenuOpen(false)} onClose={() => setMobileMenuOpen(false)} isMobile />
         </div>
         <main className="app-main" id="main-content" tabIndex={-1}>
@@ -84,7 +84,7 @@ function MobileHeader({ title, drawerId, isOpen, onOpen }: { title: string; draw
         <span className="mobile-section-kicker">GGS Document Studio</span>
         <strong title={title}>{title}</strong>
       </div>
-      <Button type="button" variant="ghost" size="icon" aria-label="Abrir mas opciones" aria-controls={drawerId} aria-expanded={isOpen} onClick={onOpen}>
+      <Button type="button" variant="ghost" size="icon" aria-label="Abrir más opciones" aria-controls={drawerId} aria-expanded={isOpen} onClick={onOpen}>
         <Menu className="size-5" aria-hidden={true} />
       </Button>
     </header>
@@ -116,7 +116,7 @@ function MobileBottomNav({
   const moreIsActive = !primaryItems.some((item) => item.key === currentSection);
 
   return (
-    <nav className="mobile-bottom-nav" aria-label="Navegacion movil">
+    <nav className="mobile-bottom-nav" aria-label="Navegación móvil">
       {primaryItems.map(({ key, section }) => {
         const Icon = section.icon;
         const isActive = key === currentSection;
@@ -136,11 +136,11 @@ function MobileBottomNav({
       <button
         type="button"
         className={cn("mobile-bottom-nav-item", moreIsActive && "is-active")}
-        aria-label="Abrir mas secciones"
+        aria-label="Abrir más secciones"
         onClick={onMore}
       >
         <Menu className="size-5" aria-hidden={true} />
-        <span>Mas</span>
+        <span>Más</span>
       </button>
     </nav>
   );

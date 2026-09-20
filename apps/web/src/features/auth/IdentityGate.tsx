@@ -13,8 +13,8 @@ export function IdentityGate({ children }: { children: React.ReactNode }) {
   useEffect(() => () => { cache.removeQueries({ queryKey: ["studio"] }); }, [cache]);
   if (identity.isPending) return <div className="p-8" role="status">Comprobando acceso...</div>;
   if (identity.isError || !identity.data?.isActive) return <main className="mx-auto max-w-md space-y-5 p-8">
-    <h1 className="text-xl font-semibold">Acceso al estudio</h1>
-    <p role="alert">{identity.error instanceof Error ? identity.error.message : "Tu cuenta no esta habilitada."}</p>
+    <h1 className="text-xl font-semibold">Acceso a la aplicación</h1>
+    <p role="alert">{identity.error instanceof Error ? identity.error.message : "Tu cuenta no está habilitada."}</p>
     <div className="flex gap-3">
       {!(identity.error instanceof ApiError && [401, 403].includes(identity.error.status)) && <Button onClick={() => void identity.refetch()}><RefreshCw className="mr-2 size-4" />Reintentar</Button>}
       <Button variant="ghost" onClick={() => void signOut().catch(() => useAuthStore.setState({ session: null, user: null }))}><LogOut className="mr-2 size-4" />Salir</Button>

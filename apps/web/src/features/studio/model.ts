@@ -106,14 +106,14 @@ export function snapElement(element: StudioElement, draft: Draft, threshold = 5)
 
 export function validateDraftForSave(draft: Draft): string | null {
   if (!draft.name.trim()) return "Asigna un nombre a la plantilla.";
-  if (!Number.isFinite(draft.width) || !Number.isFinite(draft.height) || draft.width <= 0 || draft.height <= 0) return "El tamano del papel no es valido.";
-  if (draft.marginLeft + draft.marginRight >= draft.width || draft.marginTop + draft.marginBottom >= draft.height) return "Los margenes no caben en la pagina.";
+  if (!Number.isFinite(draft.width) || !Number.isFinite(draft.height) || draft.width <= 0 || draft.height <= 0) return "El tamaño del papel no es válido.";
+  if (draft.marginLeft + draft.marginRight >= draft.width || draft.marginTop + draft.marginBottom >= draft.height) return "Los márgenes no caben en la página.";
   const keys = new Set<string>();
   for (const element of draft.elements) {
     if (!["IMAGE", "FILE", "TEXT", "RECTANGLE", "LINE"].includes(element.type)) return "Hay un tipo de elemento no permitido.";
     if (![element.x, element.y, element.width, element.height, element.rotation].every(Number.isFinite)) return `El elemento ${element.name} tiene valores invalidos.`;
     if (element.width <= 0 || element.height <= 0) return `El elemento ${element.name} necesita ancho y alto positivos.`;
-    if (element.x < 0 || element.y < 0 || element.x + element.width > draft.width || element.y + element.height > draft.height) return `El elemento ${element.name} esta fuera de la pagina.`;
+    if (element.x < 0 || element.y < 0 || element.x + element.width > draft.width || element.y + element.height > draft.height) return `El elemento ${element.name} está fuera de la página.`;
     if (element.type === "IMAGE" || element.type === "FILE") {
       if (!element.key || !/^[a-z][a-z0-9_]{0,59}$/.test(element.key)) return `La clave de ${element.name} debe usar minusculas, numeros y guion bajo.`;
       if (keys.has(element.key)) return `La clave ${element.key} esta repetida.`;

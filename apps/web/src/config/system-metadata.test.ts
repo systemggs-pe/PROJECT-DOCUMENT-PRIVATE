@@ -24,7 +24,7 @@ describe("systemMetadata", () => {
     const diagnostic = getDiagnosticInfo("Test Browser");
 
     expect(diagnostic).toContain("Producto: GGS Document Studio");
-    expect(diagnostic).toContain(`Version: ${systemMetadata.version}`);
+    expect(diagnostic).toContain(`Versión: ${systemMetadata.version}`);
     expect(diagnostic).toContain("Navegador: Test Browser");
     expect(diagnostic).not.toMatch(/DATABASE_URL|SUPABASE|TOKEN|SECRET|PASSWORD/i);
   });

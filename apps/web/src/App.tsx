@@ -25,8 +25,8 @@ const SupportPage = lazy(() => import("@/features/support/SupportPage"));
 
 const sections = {
   dashboard: {
-    title: "Dashboard",
-    description: "Estado operativo del estudio documental.",
+    title: "Panel principal",
+    description: "Resumen del estado del sistema.",
     icon: Gauge,
   },
   templates: {
@@ -35,52 +35,52 @@ const sections = {
     icon: Layers3,
   },
   generate: {
-    title: "Generar",
-    description: "Completa una plantilla.",
+    title: "Crear documento",
+    description: "Completa y genera documentos.",
     icon: FileOutput,
   },
   files: {
     title: "Archivos",
-    description: "Imagenes privadas.",
+    description: "Biblioteca privada.",
     icon: Files,
   },
   fileFields: {
-    title: "Campos de archivo",
-    description: "Catalogo dinamico.",
+    title: "Requisitos de archivos",
+    description: "Archivos solicitados en plantillas.",
     icon: ClipboardList,
   },
   generations: {
-    title: "Generaciones",
-    description: "Documentos generados.",
+    title: "Historial",
+    description: "Documentos creados.",
     icon: FileClock,
   },
   company: {
     title: "Empresa",
-    description: "Configuracion global.",
+    description: "Datos del negocio.",
     icon: Building2,
   },
   users: {
     title: "Usuarios",
-    description: "Accesos y estado.",
+    description: "Cuentas y estado.",
     icon: UsersRound,
   },
   roles: {
     title: "Roles",
-    description: "Permisos configurables.",
+    description: "Permisos de trabajo.",
     icon: ShieldCheck,
   },
   audit: {
-    title: "Auditoría",
-    description: "Eventos sensibles.",
+    title: "Registro de actividad",
+    description: "Cambios importantes.",
     icon: ShieldCheck,
   },
   support: {
     title: "Soporte",
-    description: "Ayuda y version.",
+    description: "Ayuda y contacto.",
     icon: LifeBuoy,
   },
   settings: {
-    title: "Configuración",
+    title: "Mi cuenta",
     description: "Tu cuenta.",
     icon: Settings,
   },
@@ -153,14 +153,14 @@ export function App() {
       <Suspense fallback={<p role="status">Cargando...</p>}>
       {!canAccessModule(identity.data, currentSection) ? <AccessDenied /> : currentSection === "dashboard" ? (
         <Dashboard />
-      ) : currentSection === "templates" ? <Studio /> : currentSection === "generate" ? <GeneratePage /> : currentSection === "files" ? <FileLibrary /> : currentSection === "fileFields" ? <FileFieldsPage /> : currentSection === "generations" ? (pathname.startsWith("/generations/") ? <GenerationDetail /> : <History />) : currentSection === "company" ? <CompanyPage /> : currentSection === "users" ? <UsersPage /> : currentSection === "roles" ? <RolesPage /> : currentSection === "audit" ? <section className="empty-state"><h2>Auditoría</h2><p>Los eventos sensibles ya se registran en backend. La vista detallada queda preparada para la siguiente iteración administrativa.</p></section> : currentSection === "support" ? <SupportPage /> : <SettingsPage />}
+      ) : currentSection === "templates" ? <Studio /> : currentSection === "generate" ? <GeneratePage /> : currentSection === "files" ? <FileLibrary /> : currentSection === "fileFields" ? <FileFieldsPage /> : currentSection === "generations" ? (pathname.startsWith("/generations/") ? <GenerationDetail /> : <History />) : currentSection === "company" ? <CompanyPage /> : currentSection === "users" ? <UsersPage /> : currentSection === "roles" ? <RolesPage /> : currentSection === "audit" ? <section className="empty-state"><h2>Registro de actividad</h2><p>Los cambios importantes ya se guardan. La consulta detallada estará disponible en una próxima actualización.</p></section> : currentSection === "support" ? <SupportPage /> : <SettingsPage />}
       </Suspense>
     </AppShell></IdentityGate>
   );
 }
 
 function AccessDenied() {
-  return <section className="empty-state" role="alert"><h2>403 - Acceso denegado</h2><p>No tienes permisos para acceder a esta sección.</p><Button variant="ghost" onClick={() => { window.history.pushState(null, "", "/"); window.dispatchEvent(new PopStateEvent("popstate")); }}>Volver</Button></section>;
+  return <section className="empty-state" role="alert"><h2>Acceso no permitido</h2><p>Tu cuenta no tiene permiso para abrir esta sección.</p><Button variant="ghost" onClick={() => { window.history.pushState(null, "", "/"); window.dispatchEvent(new PopStateEvent("popstate")); }}>Volver al inicio</Button></section>;
 }
 
 

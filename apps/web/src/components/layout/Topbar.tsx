@@ -16,7 +16,7 @@ export function Topbar({ title = "Estudio documental" }: { title?: string }) {
       await signOut();
       queryClient.clear();
       window.history.replaceState(null, "", "/login");
-    } catch { setError("No se pudo cerrar la sesion. Intenta nuevamente."); }
+    } catch { setError("No se pudo cerrar la sesión. Intenta nuevamente."); }
   }
 
   return (

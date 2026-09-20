@@ -87,7 +87,7 @@ export default function UsersPage() {
 
   return <div className="studio-page">
     <div className="page-heading">
-      <div><p className="eyebrow">Administracion</p><h2>Usuarios</h2><p className="page-subtitle">Controla cuentas, estado y roles con permisos reales del backend.</p></div>
+      <div><p className="eyebrow">Administración</p><h2>Usuarios</h2><p className="page-subtitle">Controla cuentas, estado y roles de las personas que usan el sistema.</p></div>
     </div>
 
     {canCreate && <section className="admin-controls">
@@ -95,25 +95,25 @@ export default function UsersPage() {
       <label className="field"><span>Nombre</span><input value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} /></label>
       <label className="field"><span>Rol inicial</span><select value={draft.roleId} onChange={(event) => setDraft((current) => ({ ...current, roleId: event.target.value }))}><option value="">Sin rol</option>{roles.data?.items.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       <label className="inline-check"><input type="checkbox" checked={draft.isActive} onChange={(event) => setDraft((current) => ({ ...current, isActive: event.target.checked }))} />Activo</label>
-      <Button onClick={() => void createUser.mutate()} disabled={createUser.isPending || !draft.email.trim()}><Plus className="mr-2 size-4" />Crear</Button>
+      <Button onClick={() => void createUser.mutate()} disabled={createUser.isPending || !draft.email.trim()}><Plus className="mr-2 size-4" />Agregar usuario</Button>
     </section>}
     {createUser.error && <p className="studio-error" role="alert">{createUser.error.message}</p>}
 
     <section className="admin-controls">
-      <label className="field"><span>Buscar</span><span className="input-with-icon"><Search className="size-4" /><input value={search} placeholder="Nombre o email" onChange={(event) => setSearch(event.target.value)} /></span></label>
+      <label className="field"><span>Buscar</span><span className="input-with-icon"><Search className="size-4" /><input value={search} placeholder="Nombre o correo" onChange={(event) => setSearch(event.target.value)} /></span></label>
       <label className="field"><span>Estado</span><select value={status} onChange={(event) => setStatus(event.target.value)}><option value="">Todos</option><option value="ACTIVE">Activos</option><option value="INACTIVE">Inactivos</option></select></label>
       <label className="field"><span>Rol</span><select value={role} onChange={(event) => setRole(event.target.value)}><option value="">Todos</option>{roles.data?.items.map((item) => <option key={item.id} value={item.key}>{item.name}</option>)}</select></label>
     </section>
 
     {users.isPending ? <div className="loading-row" role="status"><LoaderCircle className="size-4 animate-spin" />Cargando usuarios...</div> : users.isError ? <section className="empty-state" role="alert"><h2>No se pudieron cargar usuarios</h2><p>{users.error.message}</p><Button onClick={() => void users.refetch()}>Reintentar</Button></section> : <div className="admin-table" role="table" aria-label="Usuarios">
-      <div className="admin-head" role="row"><span>Usuario</span><span>Roles</span><span>Estado</span><span>Ultimo acceso</span><span>Acciones</span></div>
+      <div className="admin-head" role="row"><span>Usuario</span><span>Roles</span><span>Estado</span><span>Último acceso</span><span>Acciones</span></div>
       {users.data.items.map((user) => {
         const selectedRoleId = roleIdByUser[user.id] ?? "";
         const editableName = nameByUser[user.id] ?? user.name ?? "";
         return <div className="admin-row" role="row" key={user.id}>
           <span><strong>{user.name ?? user.email}</strong><small>{user.email}</small>{canUpdate && <input aria-label={`Nombre de ${user.email}`} value={editableName} onChange={(event) => setNameByUser((current) => ({ ...current, [user.id]: event.target.value }))} />}</span>
           <span className="role-chip-list">{user.roles.map((item) => <small className="role-chip" key={item.id}>{item.key}</small>)}</span>
-          <span className={`status ${user.isActive ? "status-completed" : "status-failed"}`}>{user.status}</span>
+          <span className={`status ${user.isActive ? "status-completed" : "status-failed"}`}>{user.isActive ? "Activo" : "Inactivo"}</span>
           <span>{user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString("es-PE") : "Sin acceso"}</span>
           <span className="admin-actions">
             {canUpdate && <Button variant="ghost" size="icon" title="Guardar nombre" aria-label={`Guardar nombre de ${user.email}`} disabled={updateUser.isPending} onClick={() => void updateUser.mutate({ id: user.id, name: editableName })}><Save className="size-4" /></Button>}

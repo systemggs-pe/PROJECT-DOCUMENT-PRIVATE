@@ -10,23 +10,23 @@ import { systemMetadata } from "@/config/system-metadata";
 import { useAuthStore } from "@/stores/auth-store";
 
 const loginSchema = z.object({
-  email: z.email("Ingresa un email válido."),
-  password: z.string().min(1, "Ingresa tu password."),
+  email: z.email("Ingresa un correo válido."),
+  password: z.string().min(1, "Ingresa tu contraseña."),
 });
 
 const resetRequestSchema = z.object({
-  email: z.email("Ingresa un email válido."),
+  email: z.email("Ingresa un correo válido."),
 });
 
 const registerSchema = z
   .object({
     name: z.string().trim().min(2, "Ingresa tu nombre."),
-    email: z.email("Ingresa un email válido."),
+    email: z.email("Ingresa un correo válido."),
     password: z.string().min(8, "Usa al menos 8 caracteres."),
-    confirmPassword: z.string().min(8, "Confirma tu password."),
+    confirmPassword: z.string().min(8, "Confirma tu contraseña."),
   })
   .refine((value) => value.password === value.confirmPassword, {
-    message: "Los passwords no coinciden.",
+    message: "Las contraseñas no coinciden.",
     path: ["confirmPassword"],
   });
 
@@ -135,10 +135,10 @@ export function AuthPage() {
         <div className="max-w-xl">
           <p className="text-sm uppercase tracking-[0.18em] text-white/55">GGS Document Studio</p>
           <h1 className="mt-4 text-4xl font-semibold tracking-normal sm:text-5xl">
-            Acceso seguro al estudio documental.
+            Acceso seguro a tus documentos.
           </h1>
           <p className="mt-5 text-base leading-7 text-white/72">
-            La sesión vive en Supabase Auth; la autorización real se aplica en NestJS con ownership por usuario.
+            Ingresa para crear documentos, administrar plantillas y consultar tu historial de trabajo.
           </p>
         </div>
       </section>
@@ -152,7 +152,7 @@ export function AuthPage() {
 
           {!isConfigured ? (
             <div className="mb-5 rounded-md border border-[var(--line)] bg-[var(--surface-elevated)] p-4 text-sm text-[var(--muted)]">
-              Configura VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY para habilitar autenticación real.
+              El acceso seguro todavía no está configurado. Contacta al administrador del sistema.
             </div>
           ) : null}
 
@@ -173,13 +173,13 @@ export function AuthPage() {
               <Field label="Nombre" error={registerForm.formState.errors.name?.message}>
                 <input {...registerForm.register("name")} autoComplete="name" className={inputClassName} />
               </Field>
-              <Field label="Email" error={registerForm.formState.errors.email?.message}>
+              <Field label="Correo" error={registerForm.formState.errors.email?.message}>
                 <input {...registerForm.register("email")} autoComplete="email" className={inputClassName} />
               </Field>
-              <Field label="Password" error={registerForm.formState.errors.password?.message}>
+              <Field label="Contraseña" error={registerForm.formState.errors.password?.message}>
                 <input {...registerForm.register("password")} type="password" autoComplete="new-password" className={inputClassName} />
               </Field>
-              <Field label="Confirmar password" error={registerForm.formState.errors.confirmPassword?.message}>
+              <Field label="Confirmar contraseña" error={registerForm.formState.errors.confirmPassword?.message}>
                 <input
                   {...registerForm.register("confirmPassword")}
                   type="password"
@@ -195,10 +195,10 @@ export function AuthPage() {
           ) : (
             <div className="grid gap-4">
               <form className="grid gap-4" onSubmit={loginForm.handleSubmit(submitLogin)}>
-                <Field label="Email" error={loginForm.formState.errors.email?.message}>
+                <Field label="Correo" error={loginForm.formState.errors.email?.message}>
                   <input {...loginForm.register("email")} autoComplete="email" className={inputClassName} />
                 </Field>
-                <Field label="Password" error={loginForm.formState.errors.password?.message}>
+                <Field label="Contraseña" error={loginForm.formState.errors.password?.message}>
                   <input {...loginForm.register("password")} type="password" autoComplete="current-password" className={inputClassName} />
                 </Field>
                 <Button type="submit" className="h-11 gap-2" disabled={!isConfigured || loginForm.formState.isSubmitting}>
@@ -208,7 +208,7 @@ export function AuthPage() {
               </form>
 
               <form className="grid gap-3 border-t border-[var(--line)] pt-4" onSubmit={resetRequestForm.handleSubmit(submitPasswordReset)}>
-                <Field label="Email para recuperación" error={resetRequestForm.formState.errors.email?.message}>
+                <Field label="Correo para recuperación" error={resetRequestForm.formState.errors.email?.message}>
                   <input {...resetRequestForm.register("email")} autoComplete="email" className={inputClassName} />
                 </Field>
                 <Button
@@ -231,7 +231,7 @@ export function AuthPage() {
           <div className="mt-6 flex items-center justify-between text-sm">
             <span className="inline-flex items-center gap-2 text-[var(--muted)]">
               <LockKeyhole className="size-4" aria-hidden={true} />
-              Supabase Auth
+              Acceso seguro
             </span>
             <button
               type="button"

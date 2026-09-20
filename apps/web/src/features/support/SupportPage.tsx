@@ -6,20 +6,20 @@ import { getDiagnosticInfo, getSupportMailto, systemMetadata } from "@/config/sy
 
 const faqItems = [
   {
-    question: "Como genero un documento?",
-    answer: "Entra a Generar, selecciona una plantilla, completa los campos requeridos, actualiza la previsualizacion y confirma la generacion cuando el PDF sea correcto.",
+    question: "¿Cómo creo un documento?",
+    answer: "Entra a Crear documento, selecciona una plantilla, completa los campos requeridos, revisa la vista previa y genera el PDF cuando todo esté correcto.",
   },
   {
-    question: "Como cargo una imagen o archivo?",
-    answer: "Usa la biblioteca de Archivos o los campos de la plantilla. El sistema valida tipo, peso y ownership antes de permitir la generacion.",
+    question: "¿Cómo cargo una imagen o archivo?",
+    answer: "Usa la biblioteca de Archivos o los campos de la plantilla. El sistema valida el tipo y peso antes de crear el documento.",
   },
   {
-    question: "Como reviso el PDF antes de descargarlo?",
-    answer: "La vista de Generar permite actualizar la previsualizacion real del PDF antes de crear el documento final.",
+    question: "¿Cómo reviso el PDF antes de descargarlo?",
+    answer: "La vista Crear documento permite actualizar una vista previa real del PDF antes de generar el documento final.",
   },
   {
-    question: "Que hago si un archivo no carga?",
-    answer: "Verifica que el archivo no este danado, que su extension coincida con el formato y que no supere los limites configurados.",
+    question: "¿Qué hago si un archivo no carga?",
+    answer: "Verifica que el archivo no esté dañado, que su extensión coincida con el formato y que no supere los límites permitidos.",
   },
 ];
 
@@ -32,9 +32,9 @@ export default function SupportPage() {
     const diagnosticInfo = getDiagnosticInfo();
     try {
       await navigator.clipboard.writeText(diagnosticInfo);
-      setCopyStatus("Informacion del sistema copiada.");
+      setCopyStatus("Información del sistema copiada.");
     } catch {
-      setCopyStatus("No se pudo copiar automaticamente.");
+      setCopyStatus("No se pudo copiar automáticamente.");
     }
   }
 
@@ -45,7 +45,7 @@ export default function SupportPage() {
           <p className="eyebrow">Soporte</p>
           <h2>Centro de ayuda</h2>
           <p className="page-subtitle">
-            Informacion del producto, canales de contacto y datos seguros para reportar problemas.
+            Información del producto, canales de contacto y datos seguros para reportar problemas.
           </p>
         </div>
       </header>
@@ -94,32 +94,32 @@ export default function SupportPage() {
         <article className="support-card">
           <div className="support-card-heading">
             <BookOpen className="size-5" aria-hidden={true} />
-            <h3>Documentacion</h3>
+            <h3>Documentación</h3>
           </div>
           {systemMetadata.support.documentationUrl ? (
             <a href={systemMetadata.support.documentationUrl} className="support-link" target="_blank" rel="noopener noreferrer">
-              Abrir documentacion
+              Abrir documentación
               <ExternalLink className="size-4" aria-hidden={true} />
             </a>
           ) : (
-            <p className="support-muted">Documentacion proximamente.</p>
+            <p className="support-muted">Documentación próximamente.</p>
           )}
         </article>
 
         <article className="support-card">
           <div className="support-card-heading">
             <Wrench className="size-5" aria-hidden={true} />
-            <h3>Informacion del sistema</h3>
+            <h3>Información del sistema</h3>
           </div>
           <dl className="system-info-list">
             <div><dt>Producto</dt><dd>{systemMetadata.productName}</dd></div>
-            <div><dt>Version</dt><dd>v{systemMetadata.version}</dd></div>
+            <div><dt>Versión</dt><dd>v{systemMetadata.version}</dd></div>
             <div><dt>Proveedor</dt><dd>{systemMetadata.productFamily} / {systemMetadata.vendorName}</dd></div>
-            {systemMetadata.build ? <div><dt>Build</dt><dd>{systemMetadata.build}</dd></div> : null}
+            {systemMetadata.build ? <div><dt>Compilación</dt><dd>{systemMetadata.build}</dd></div> : null}
           </dl>
           <Button type="button" variant="ghost" className="support-copy-button" onClick={() => void copyDiagnosticInfo()}>
             <ClipboardCopy className="size-4" aria-hidden={true} />
-            Copiar informacion del sistema
+            Copiar información del sistema
           </Button>
           {copyStatus ? <p className="support-copy-status" role="status">{copyStatus}</p> : null}
         </article>
@@ -146,7 +146,7 @@ export default function SupportPage() {
           <h3>Reportar un problema</h3>
         </div>
         <p className="support-muted">
-          Incluye que intentabas hacer, el mensaje de error, una captura si aplica y la informacion del sistema copiada desde esta pagina.
+          Incluye qué intentabas hacer, el mensaje de error, una captura si aplica y la información del sistema copiada desde esta página.
         </p>
         {mailto ? (
           <Button asChild>

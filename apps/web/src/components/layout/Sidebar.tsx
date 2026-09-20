@@ -38,7 +38,7 @@ export function Sidebar({ sections, isMobile = false, onClose, onNavigate }: Sid
       queryClient.clear();
       onNavigate?.();
       window.history.replaceState(null, "", "/login");
-    } catch { setError("No se pudo cerrar la sesion."); }
+    } catch { setError("No se pudo cerrar la sesión."); }
   }
 
   return (
@@ -52,10 +52,10 @@ export function Sidebar({ sections, isMobile = false, onClose, onNavigate }: Sid
             <p>Document Studio</p>
             <span>v{systemMetadata.version}</span>
           </div>
-          {isMobile && <Button type="button" variant="ghost" size="icon" className="ml-auto" aria-label="Cerrar menu" onClick={onClose}><X className="size-4" /></Button>}
+          {isMobile && <Button type="button" variant="ghost" size="icon" className="ml-auto" aria-label="Cerrar menú" onClick={onClose}><X className="size-4" /></Button>}
         </div>
 
-        <nav className="sidebar-nav" aria-label="Navegacion principal">
+        <nav className="sidebar-nav" aria-label="Navegación principal">
           {sectionOrder.map((key) => {
             const section = sections[key];
             if (!section) return null;
@@ -86,9 +86,9 @@ export function Sidebar({ sections, isMobile = false, onClose, onNavigate }: Sid
         </nav>
 
         {isMobile && <div className="sidebar-footer">
-          <div className="sidebar-account" title={user?.email ?? "Sesion activa"}>
+          <div className="sidebar-account" title={user?.email ?? "Sesión activa"}>
             <span>Cuenta</span>
-            <strong>{user?.email ?? "Sesion activa"}</strong>
+            <strong>{user?.email ?? "Sesión activa"}</strong>
           </div>
           <Button type="button" variant="ghost" className="sidebar-logout" onClick={() => void handleSignOut()}>
             <LogOut className="size-4" aria-hidden={true} />

@@ -128,7 +128,7 @@ export default function GeneratePage() {
   const generateMutation = useMutation({
     mutationFn: () => apiJson<Generation>("/generations", { method: "POST", body: JSON.stringify(buildGenerationPayload()) }),
     onSuccess: (generation) => {
-      if (generation.status !== "COMPLETED") throw new Error(generation.errorMessage ?? "La generacion no termino correctamente.");
+      if (generation.status !== "COMPLETED") throw new Error(generation.errorMessage ?? "No se pudo completar la creación del documento.");
       setResult(generation);
       setMessage("");
       requestKey.current = crypto.randomUUID();
@@ -214,7 +214,7 @@ export default function GeneratePage() {
   }
 
   function buildGenerationPayload() {
-    if (!selectedTemplate || !selectedVersion) throw new Error("Selecciona una plantilla con version activa.");
+    if (!selectedTemplate || !selectedVersion) throw new Error("Selecciona una plantilla con versión activa.");
     const missing = slots.filter((slot) => slot.required && !files[slot.key!]);
     if (missing.length > 0) throw new Error(`Carga: ${missing.map((slot) => slot.name).join(", ")}.`);
     const missingFiles = fileSlots.filter((slot) => slot.required && !(fieldFiles[slot.key!]?.length));
@@ -258,14 +258,14 @@ export default function GeneratePage() {
     <div className="generate-page">
       <div className="page-heading">
         <div>
-          <p className="eyebrow">Produccion documental</p>
-          <h2>Generar PDF</h2>
-          <p className="page-subtitle">Completa los campos de la version activa y conserva el documento numerado en tu historial.</p>
+          <p className="eyebrow">Documentos</p>
+          <h2>Crear documento</h2>
+          <p className="page-subtitle">Completa los datos de la plantilla y guarda el PDF en tu historial.</p>
         </div>
         <FileOutput className="generate-heading-icon" aria-hidden={true} />
       </div>
 
-      <ol className="generation-stepper" aria-label="Proceso de generacion">
+      <ol className="generation-stepper" aria-label="Proceso de creación de documento">
         {generationSteps.map((step, index) => <li className={step.complete ? "is-complete" : ""} key={step.label}><span>{index + 1}</span>{step.label}</li>)}
       </ol>
 
@@ -273,7 +273,7 @@ export default function GeneratePage() {
         <section className="empty-state"><FileOutput className="size-7" /><h3>No hay plantillas activas</h3><p>Activa una plantilla desde Plantillas para empezar a generar.</p></section>
       ) : (
         <>
-          <section className="generation-config" aria-label="Configuracion de generacion">
+          <section className="generation-config" aria-label="Configuración del documento">
             <div className="generation-selects">
               <label className="field">
                 <span>Plantilla</span>
@@ -282,14 +282,14 @@ export default function GeneratePage() {
                 </select>
               </label>
               <label className="field">
-                <span>Version</span>
+                <span>Versión</span>
                 <select value={selectedVersion?.id ?? ""} onChange={(event) => { setVersionId(event.target.value); setFiles({}); setFieldFiles({}); setResult(null); closePreview(); }}>
-                  {selectedTemplate.versions.map((version) => <option key={version.id} value={version.id}>Version {version.versionNumber}{version.isActive ? " , activa" : ""}</option>)}
+                  {selectedTemplate.versions.map((version) => <option key={version.id} value={version.id}>Versión {version.versionNumber}{version.isActive ? ", activa" : ""}</option>)}
                 </select>
               </label>
             </div>
             <div className="generation-config-meta">
-              <span><strong>Formato</strong>{selectedVersion?.paperSize ?? "Sin version"} {selectedVersion?.orientation === "LANDSCAPE" ? "horizontal" : "vertical"}</span>
+              <span><strong>Formato</strong>{selectedVersion?.paperSize ?? "Sin versión"} {selectedVersion?.orientation === "LANDSCAPE" ? "horizontal" : "vertical"}</span>
               <span><strong>Campos de imagen</strong>{slots.length}</span>
               <span><strong>Campos de archivo</strong>{fileSlots.length}</span>
             </div>
@@ -313,14 +313,14 @@ export default function GeneratePage() {
                     </div>
                   ))}
                 </div>
-              ) : <p className="panel-hint">Opcional: agrega PDFs, DOC o DOCX de tu biblioteca para unirlos despues del documento principal.</p>}
+              ) : <p className="panel-hint">Opcional: agrega PDF, DOC o DOCX de tu biblioteca para unirlos después del documento principal.</p>}
               <div className="attachment-picker">
                 {libraryFiles.isPending ? <div className="loading-row" role="status"><LoaderCircle className="size-4 animate-spin" />Cargando biblioteca...</div> : libraryFiles.isError ? <p className="studio-error" role="alert">{libraryFiles.error.message}</p> : attachmentCandidates(libraryFiles.data?.items ?? []).length ? attachmentCandidates(libraryFiles.data?.items ?? []).map((file) => {
                   const selected = attachments.some((item) => item.id === file.id);
                   return <button className="attachment-option" type="button" key={file.id} disabled={selected} onClick={() => addAttachment(file)} title={file.originalName}><FileText className="size-4" /><span>{file.originalName}</span><small>{selected ? "Agregado" : file.type === "PDF" ? "Agregar PDF" : "Convertir y anexar"}</small></button>;
                 }) : <p className="panel-hint">No hay PDFs o documentos en tu biblioteca. Sube uno desde Archivos para usarlo como anexo.</p>}
               </div>
-              <p className="panel-hint">Los DOC/DOCX se convierten a PDF en backend antes de anexarse. Si LibreOffice no esta configurado en el servidor, la generacion mostrara un error claro.</p>
+              <p className="panel-hint">Los DOC/DOCX se convierten a PDF antes de anexarse. Si la conversión no está disponible, el sistema mostrará un mensaje claro.</p>
             </div>
           </section>
 
@@ -340,13 +340,13 @@ export default function GeneratePage() {
                           <span><ImagePlus className="size-4" />{slot.name}{slot.required ? " *" : ""}</span>
                           {selected && <Button variant="ghost" size="icon" title={`Quitar ${slot.name}`} aria-label={`Quitar ${slot.name}`} onClick={() => removeFile(slot.key!)}><Trash2 className="size-4" /></Button>}
                         </div>
-                        {selected ? <div className="slot-selected"><img src={selected.previewUrl} alt={`Vista previa de ${slot.name}`} /><span title={selected.originalName}>{selected.originalName}</span></div> : <p className="slot-empty">Aun no has seleccionado una imagen.</p>}
+                        {selected ? <div className="slot-selected"><img src={selected.previewUrl} alt={`Vista previa de ${slot.name}`} /><span title={selected.originalName}>{selected.originalName}</span></div> : <p className="slot-empty">Aún no has seleccionado una imagen.</p>}
                         <ImageCaptureActions fileLabel={selected ? "Reemplazar imagen" : "Seleccionar imagen"} disabled={uploadMutation.isPending} onSelect={(file) => setCropTarget({ key: slot.key!, file })} />
                       </div>
                     );
                   })}
                 </div>
-              ) : <p className="panel-hint">Esta version no tiene campos de imagen. Puedes generar el PDF usando solo sus textos y formas.</p>}
+              ) : <p className="panel-hint">Esta versión no tiene campos de imagen. Puedes crear el PDF usando solo sus textos y formas.</p>}
             </div>
 
             <div className="generation-inputs">
@@ -365,24 +365,24 @@ export default function GeneratePage() {
                         <span><Paperclip className="size-4" />{slot.name}{slot.required ? " *" : ""}</span>
                         <small>{selected.length}/{maxFiles}</small>
                       </div>
-                      <p className="slot-empty">{slot.properties.fileRenderMode === "PLACE" ? `Se ubicara en plantilla: ${Math.round(slot.width)} x ${Math.round(slot.height)} pt.` : "Se anexara como paginas completas al final."}</p>
+                      <p className="slot-empty">{slot.properties.fileRenderMode === "PLACE" ? `Se ubicará en la plantilla: ${Math.round(slot.width)} x ${Math.round(slot.height)} pt.` : "Se anexará como páginas completas al final."}</p>
                       {selected.length ? <div className="attachment-list">{selected.map((file) => <div className="attachment-row" key={file.id}><span><Paperclip className="size-4" />{file.originalName}</span><Button variant="ghost" size="icon" title="Quitar" aria-label={`Quitar ${file.originalName}`} onClick={() => removeFieldFile(slot.key!, file.id)}><Trash2 className="size-4" /></Button></div>)}</div> : null}
                       <label className="field">
-                        <span>{selected.length >= maxFiles ? "Limite alcanzado" : "Agregar archivo"}</span>
+                        <span>{selected.length >= maxFiles ? "Límite alcanzado" : "Agregar archivo"}</span>
                         <select value="" disabled={selected.length >= maxFiles} onChange={(event) => { const file = options.find((item) => item.id === event.target.value); if (file) selectFieldFile(slot.key!, file, maxFiles); }}>
                           <option value="">Seleccionar archivo de biblioteca</option>
                           {options.map((file) => <option key={file.id} value={file.id}>{file.originalName}</option>)}
                         </select>
                       </label>
                       <label className={`slot-file-button ${selected.length >= maxFiles || fieldUploadMutation.isPending ? "is-disabled" : ""}`}>
-                        <input type="file" accept={acceptForSlot(slot.properties)} disabled={selected.length >= maxFiles || fieldUploadMutation.isPending} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (!file) return; if (selected.length >= maxFiles) { setMessage(`Puedes subir un maximo de ${maxFiles} archivo(s) para ${slot.name}.`); return; } fieldUploadMutation.mutate({ key: slot.key!, file, slot }); }} />
+                        <input type="file" accept={acceptForSlot(slot.properties)} disabled={selected.length >= maxFiles || fieldUploadMutation.isPending} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (!file) return; if (selected.length >= maxFiles) { setMessage(`Puedes subir un máximo de ${maxFiles} archivo(s) para ${slot.name}.`); return; } fieldUploadMutation.mutate({ key: slot.key!, file, slot }); }} />
                         <Paperclip className="size-4" />
                         <span>{fieldUploadMutation.isPending ? "Subiendo archivo..." : "Subir desde mi carpeta"}</span>
                       </label>
                     </div>;
                   })}
                 </div>
-              ) : <p className="panel-hint">Esta version no solicita archivos PDF/DOC/DOCX dentro de la plantilla.</p>}
+              ) : <p className="panel-hint">Esta versión no solicita archivos PDF/DOC/DOCX dentro de la plantilla.</p>}
             </div>
 
             <div className="generation-inputs">
@@ -399,7 +399,7 @@ export default function GeneratePage() {
                     </label>
                   ))}
                 </div>
-              ) : <p className="panel-hint">No hay variables de texto en esta version.</p>}
+              ) : <p className="panel-hint">No hay variables de texto en esta versión.</p>}
             </div>
           </section>
 
@@ -407,17 +407,17 @@ export default function GeneratePage() {
           <div className="generation-actions">
             <Button variant="ghost" onClick={() => { setMessage(""); previewMutation.mutate(); }} disabled={previewMutation.isPending || generateMutation.isPending || uploadMutation.isPending || !selectedVersion}>
               <LoaderCircle className={`mr-2 size-4 ${previewMutation.isPending ? "animate-spin" : "hidden"}`} />
-              {previewUrl && previewStale ? "Actualizar previsualizacion" : previewMutation.isPending ? "Generando preview..." : "Previsualizar PDF"}
+              {previewUrl && previewStale ? "Actualizar vista previa" : previewMutation.isPending ? "Preparando vista previa..." : "Ver PDF antes de generar"}
             </Button>
             <Button onClick={() => { setMessage(""); generateMutation.mutate(); }} disabled={generateMutation.isPending || previewMutation.isPending || uploadMutation.isPending || !selectedVersion}>
               <LoaderCircle className={`mr-2 size-4 ${generateMutation.isPending ? "animate-spin" : "hidden"}`} />
               Generar documento
             </Button>
-            <span className="generation-action-hint">El PDF se guarda en archivos privados y recibe un correlativo unico.</span>
+            <span className="generation-action-hint">El PDF se guarda en archivos privados y recibe un número único.</span>
           </div>
 
-          {previewUrl && <section className={`generation-preview ${previewStale ? "is-stale" : ""}`}><div className="section-heading"><div><p className="eyebrow">Preview real</p><h3>Previsualizacion del PDF</h3>{previewStale && <p className="panel-hint">La previsualizacion esta desactualizada. Actualizala antes de generar desde esta vista.</p>}</div><div className="preview-actions"><Button type="button" variant="ghost" onClick={closePreview}>Volver a editar</Button><Button type="button" variant="ghost" onClick={() => { setMessage(""); previewMutation.mutate(); }} disabled={previewMutation.isPending}>{previewMutation.isPending ? "Actualizando..." : "Actualizar preview"}</Button><Button type="button" onClick={() => { setMessage(""); generateMutation.mutate(); }} disabled={previewStale || generateMutation.isPending || previewMutation.isPending}>Generar PDF</Button></div></div><PdfViewer url={previewUrl} title={selectedTemplate.name} fileName="preview.pdf" sections={previewSections(selectedVersion, attachments, fieldFiles)} onDownload={() => downloadObjectUrl(previewUrl, "preview.pdf")} /></section>}
-          {result && <section className="generation-result" role="status"><div><p className="eyebrow">Documento listo</p><h3>{result.number}</h3><p>La generacion se completo con la version {selectedVersion?.versionNumber} de {selectedTemplate.name}.</p></div><Button onClick={() => void downloadGeneration(result.id, `${result.number}.pdf`)}><Download className="mr-2 size-4" />Descargar PDF</Button></section>}
+          {previewUrl && <section className={`generation-preview ${previewStale ? "is-stale" : ""}`}><div className="section-heading"><div><p className="eyebrow">Vista previa</p><h3>Revisión del PDF</h3>{previewStale && <p className="panel-hint">La vista previa está desactualizada. Actualízala antes de generar desde esta vista.</p>}</div><div className="preview-actions"><Button type="button" variant="ghost" onClick={closePreview}>Volver a editar</Button><Button type="button" variant="ghost" onClick={() => { setMessage(""); previewMutation.mutate(); }} disabled={previewMutation.isPending}>{previewMutation.isPending ? "Actualizando..." : "Actualizar vista previa"}</Button><Button type="button" onClick={() => { setMessage(""); generateMutation.mutate(); }} disabled={previewStale || generateMutation.isPending || previewMutation.isPending}>Generar PDF</Button></div></div><PdfViewer url={previewUrl} title={selectedTemplate.name} fileName="vista-previa.pdf" sections={previewSections(selectedVersion, attachments, fieldFiles)} onDownload={() => downloadObjectUrl(previewUrl, "vista-previa.pdf")} /></section>}
+          {result && <section className="generation-result" role="status"><div><p className="eyebrow">Documento listo</p><h3>{result.number}</h3><p>El documento se creó con la versión {selectedVersion?.versionNumber} de {selectedTemplate.name}.</p></div><Button onClick={() => void downloadGeneration(result.id, `${result.number}.pdf`)}><Download className="mr-2 size-4" />Descargar PDF</Button></section>}
           {cropTarget && <ImageCropEditor file={cropTarget.file} contextName={slots.find((slot) => slot.key === cropTarget.key)?.name ?? cropTarget.file.name} onCancel={() => setCropTarget(null)} onApply={(file) => { const key = cropTarget.key; const slot = slots.find((entry) => entry.key === key); setCropTarget(null); markPreviewStale(); uploadMutation.mutate({ key, file, fileFieldId: slot?.fileFieldId }); }} />}
         </>
       )}
@@ -427,7 +427,7 @@ export default function GeneratePage() {
 
 function validateImage(file: File) {
   if (!acceptedMimes.has(file.type)) throw new Error("Selecciona una imagen JPG, PNG o WebP.");
-  if (file.size > maxFileBytes) throw new Error("La imagen supera el limite de 10 MB.");
+  if (file.size > maxFileBytes) throw new Error("La imagen supera el límite de 10 MB.");
 }
 
 function revokePreview(url: string, urls: Set<string>) {
@@ -460,7 +460,7 @@ function fieldMaxFiles(slot: { properties: { fileRenderMode?: string; maxFiles?:
 
 function validateFieldUpload(file: File, properties: { acceptedMimeTypes?: string[]; maxSizeBytes?: number }) {
   if (properties.acceptedMimeTypes?.length && !properties.acceptedMimeTypes.includes(file.type)) throw new Error(`Este campo acepta unicamente: ${properties.acceptedMimeTypes.join(", ")}.`);
-  if (properties.maxSizeBytes && file.size > properties.maxSizeBytes) throw new Error(`El archivo supera el limite de ${Math.round(properties.maxSizeBytes / 1024 / 1024)} MB.`);
+  if (properties.maxSizeBytes && file.size > properties.maxSizeBytes) throw new Error(`El archivo supera el límite de ${Math.round(properties.maxSizeBytes / 1024 / 1024)} MB.`);
 }
 
 function acceptForSlot(properties: { acceptedMimeTypes?: string[] }) {
@@ -470,7 +470,7 @@ function acceptForSlot(properties: { acceptedMimeTypes?: string[] }) {
 function previewSections(version: TemplatePage["items"][number]["versions"][number] | undefined, attachments: AttachmentFile[], fieldFiles: Record<string, AttachmentFile[]>) {
   const fieldFileCount = Object.values(fieldFiles).reduce((total, files) => total + files.length, 0);
   return [
-    { label: "Documento principal", detail: `${version?.pageCount ?? 1} pagina(s)` },
+    { label: "Documento principal", detail: `${version?.pageCount ?? 1} página(s)` },
     { label: "Campos de archivo", detail: `${fieldFileCount} archivo(s)` },
     { label: "Anexos", detail: `${attachments.length} archivo(s)` },
   ];

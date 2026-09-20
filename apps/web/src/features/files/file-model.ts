@@ -25,7 +25,7 @@ const allowedTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"
 
 export function validateFile(file: File) {
   if (!allowedTypes.includes(file.type)) return "Este formato de archivo no esta permitido.";
-  if (file.size > maxBytes) return "El archivo supera el tamano permitido de 10 MB.";
+  if (file.size > maxBytes) return "El archivo supera el tamaño permitido de 10 MB.";
   if (!/\.(jpe?g|png|webp|pdf|docx?)$/i.test(file.name)) return "La extension del archivo no esta permitida.";
   if (file.type === "application/pdf" && !/\.pdf$/i.test(file.name)) return "La extension del archivo no coincide con el formato.";
   if (file.type === "application/msword" && !/\.doc$/i.test(file.name)) return "La extension del archivo no coincide con el formato.";

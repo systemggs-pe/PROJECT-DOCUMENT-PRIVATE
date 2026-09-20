@@ -12,10 +12,9 @@ export function Dashboard() {
       <section className="grid gap-4 rounded-md border border-[var(--line)] bg-[var(--panel)] p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="max-w-2xl">
-            <h2 className="text-2xl font-semibold tracking-normal">GGS Document Studio</h2>
+            <h2 className="text-2xl font-semibold tracking-normal">Panel principal</h2>
             <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-              Base inicial para una plataforma de plantillas documentales, generación de PDFs
-              privados y trazabilidad por versión.
+              Administra plantillas, crea documentos PDF y consulta el historial de trabajos realizados.
             </p>
           </div>
           <div className="flex items-center gap-2 rounded-md border border-[var(--line)] px-3 py-2 text-sm">
@@ -23,24 +22,24 @@ export function Dashboard() {
               className={isApiOnline ? "size-2 rounded-full bg-[var(--success)]" : "size-2 rounded-full bg-[var(--danger)]"}
               aria-hidden={true}
             />
-            <span>{isApiOnline ? "API conectada" : "API sin conexión"}</span>
+            <span>{isApiOnline ? "Servicio disponible" : "Servicio sin conexión"}</span>
           </div>
         </div>
       </section>
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <Metric icon={Server} label="Backend" value={health.data?.service ?? "Pendiente"} />
-        <Metric icon={Database} label="Base de datos" value={databaseLabel} />
-        <Metric icon={FileText} label="PDF engine" value="Listo para generar" />
-        <Metric icon={Activity} label="Estado" value={health.isLoading ? "Consultando" : "Fase 6"} />
+        <Metric icon={Server} label="Servicio" value={health.data?.service ?? "Pendiente"} />
+        <Metric icon={Database} label="Datos del sistema" value={databaseLabel} />
+        <Metric icon={FileText} label="Generador de PDF" value="Listo para usar" />
+        <Metric icon={Activity} label="Estado general" value={health.isLoading ? "Consultando" : "Operativo"} />
       </section>
 
       <section className="grid gap-3 rounded-md border border-[var(--line)] bg-[var(--panel)] p-5">
-        <h3 className="text-lg font-semibold">Alcance actual</h3>
+        <h3 className="text-lg font-semibold">Funciones disponibles</h3>
         <div className="grid gap-3 md:grid-cols-3">
-          <PhaseItem title="Identidad" text="Supabase Auth, usuario local y ownership aplicado en el backend." />
-          <PhaseItem title="Plantillas" text="Editor visual, paginas, slots de imagen, propiedades, zoom y versionado." />
-          <PhaseItem title="Archivos" text="Carga validada de imagenes, almacenamiento privado, URLs firmadas y borrado seguro." />
+          <PhaseItem title="Acceso de usuarios" text="Cada persona entra con su cuenta y ve solo lo que tiene permitido." />
+          <PhaseItem title="Plantillas" text="Editor visual para preparar páginas, imágenes, textos y versiones." />
+          <PhaseItem title="Archivos" text="Carga segura de imágenes y documentos en una biblioteca privada." />
         </div>
       </section>
     </div>

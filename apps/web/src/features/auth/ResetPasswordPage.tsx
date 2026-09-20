@@ -68,7 +68,7 @@ export function ResetPasswordPage() {
 
         {!isConfigured ? (
           <div className="mb-5 rounded-md border border-[var(--line)] bg-[var(--surface-elevated)] p-4 text-sm text-[var(--muted)]">
-            Configura VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY para habilitar autenticación real.
+            El acceso seguro todavía no está configurado. Contacta al administrador del sistema.
           </div>
         ) : null}
 
@@ -99,7 +99,7 @@ export function ResetPasswordPage() {
 
         <Button type="button" variant="ghost" className="mt-3 h-11 w-full gap-2 border border-[var(--line)]" onClick={returnToLogin}>
           <ArrowLeft className="size-4" aria-hidden={true} />
-          Volver al login
+          Volver al inicio de sesión
         </Button>
       </section>
     </main>

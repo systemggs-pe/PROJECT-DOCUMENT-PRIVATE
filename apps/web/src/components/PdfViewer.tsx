@@ -44,7 +44,7 @@ export function PdfViewer({ url, title, fileName, sections = [], onDownload }: P
       setLoading(false);
     }).catch(() => {
       if (!cancelled) {
-        setError("No se pudo cargar la previsualizacion del PDF.");
+        setError("No se pudo cargar la vista previa del PDF.");
         setLoading(false);
       }
     });
@@ -58,7 +58,7 @@ export function PdfViewer({ url, title, fileName, sections = [], onDownload }: P
     if (!document || !canvasRef.current) return;
     let cancelled = false;
     void renderPage(document, pageNumber, canvasRef.current, zoom).catch(() => {
-      if (!cancelled) setError("No se pudo renderizar esta pagina.");
+      if (!cancelled) setError("No se pudo mostrar esta página.");
     });
     return () => {
       cancelled = true;

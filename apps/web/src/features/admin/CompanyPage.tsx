@@ -14,8 +14,8 @@ const logoTypes = ["image/jpeg", "image/png", "image/webp"];
 export default function CompanyPage() {
   const company = useCompanySettings();
 
-  if (company.isPending) return <div className="loading-row" role="status"><LoaderCircle className="size-4 animate-spin" />Cargando configuracion...</div>;
-  if (company.isError) return <section className="empty-state" role="alert"><h2>Error al cargar</h2><p>{company.error.message}</p><Button onClick={() => void company.refetch()}>Reintentar</Button></section>;
+  if (company.isPending) return <div className="loading-row" role="status"><LoaderCircle className="size-4 animate-spin" />Cargando datos de la empresa...</div>;
+  if (company.isError) return <section className="empty-state" role="alert"><h2>No se pudieron cargar los datos de la empresa</h2><p>{company.error.message}</p><Button onClick={() => void company.refetch()}>Reintentar</Button></section>;
 
   return <CompanyForm key={company.data.updatedAt ?? company.data.id} company={company.data} />;
 }
@@ -65,16 +65,16 @@ function CompanyForm({ company }: { company: CompanySettings }) {
 
   return <div className="studio-page">
     <div className="page-heading">
-      <div><p className="eyebrow">Empresa</p><h2>{company.displayName}</h2><p className="page-subtitle">Datos institucionales y parametros globales de la empresa.</p></div>
+      <div><p className="eyebrow">Empresa</p><h2>{company.displayName}</h2><p className="page-subtitle">Datos del negocio para documentos, contacto e identidad visual.</p></div>
       <Building2 className="size-6 text-[var(--accent)]" />
     </div>
 
     <section className="company-form">
-      <div className="section-heading"><div><p className="eyebrow">Informacion general</p><h3>Identidad empresarial</h3></div>{canUpdate && <Button onClick={() => void save.mutate(normalizeDraft(draft))} disabled={save.isPending || !dirty || invalid}><Save className="mr-2 size-4" />{save.isPending ? "Guardando..." : "Guardar cambios"}</Button>}</div>
+      <div className="section-heading"><div><p className="eyebrow">Información general</p><h3>Identidad empresarial</h3></div>{canUpdate && <Button onClick={() => void save.mutate(normalizeDraft(draft))} disabled={save.isPending || !dirty || invalid}><Save className="mr-2 size-4" />{save.isPending ? "Guardando..." : "Guardar cambios"}</Button>}</div>
       <div className="company-form-grid">
         <Field label="Nombre empresarial" value={draft.name} readOnly={!canUpdate} required onChange={(value) => patch("name", value)} />
         <Field label="Nombre comercial" value={draft.tradeName ?? ""} readOnly={!canUpdate} onChange={(value) => patch("tradeName", value)} />
-        <Field label="Razon social" value={draft.legalName ?? ""} readOnly={!canUpdate} onChange={(value) => patch("legalName", value)} />
+        <Field label="Razón social" value={draft.legalName ?? ""} readOnly={!canUpdate} onChange={(value) => patch("legalName", value)} />
         <Field label="RUC / documento" value={draft.documentNumber ?? ""} readOnly={!canUpdate} onChange={(value) => patch("documentNumber", value)} />
         <Field className="company-form-wide" label="Eslogan" value={draft.slogan ?? ""} readOnly={!canUpdate} onChange={(value) => patch("slogan", value)} />
       </div>
@@ -84,18 +84,18 @@ function CompanyForm({ company }: { company: CompanySettings }) {
       <div className="section-heading"><div><p className="eyebrow">Contacto</p><h3>Canales institucionales</h3></div></div>
       <div className="company-form-grid">
         <Field label="Correo institucional" type="email" value={draft.email ?? ""} readOnly={!canUpdate} onChange={(value) => patch("email", value)} />
-        <Field label="Telefono" type="tel" value={draft.phone ?? ""} readOnly={!canUpdate} onChange={(value) => patch("phone", value)} />
+        <Field label="Teléfono" type="tel" value={draft.phone ?? ""} readOnly={!canUpdate} onChange={(value) => patch("phone", value)} />
         <Field className="company-form-wide" label="Sitio web" type="url" value={draft.website ?? ""} readOnly={!canUpdate} onChange={(value) => patch("website", value)} />
       </div>
     </section>
 
     <section className="company-form">
-      <div className="section-heading"><div><p className="eyebrow">Ubicacion</p><h3>Direccion fiscal o comercial</h3></div></div>
+      <div className="section-heading"><div><p className="eyebrow">Ubicación</p><h3>Dirección fiscal o comercial</h3></div></div>
       <div className="company-form-grid">
-        <Field className="company-form-wide" label="Direccion" value={draft.address ?? ""} readOnly={!canUpdate} onChange={(value) => patch("address", value)} />
+        <Field className="company-form-wide" label="Dirección" value={draft.address ?? ""} readOnly={!canUpdate} onChange={(value) => patch("address", value)} />
         <Field label="Ciudad" value={draft.city ?? ""} readOnly={!canUpdate} onChange={(value) => patch("city", value)} />
-        <Field label="Region" value={draft.region ?? ""} readOnly={!canUpdate} onChange={(value) => patch("region", value)} />
-        <Field label="Pais" value={draft.country ?? ""} readOnly={!canUpdate} onChange={(value) => patch("country", value)} />
+        <Field label="Región" value={draft.region ?? ""} readOnly={!canUpdate} onChange={(value) => patch("region", value)} />
+        <Field label="País" value={draft.country ?? ""} readOnly={!canUpdate} onChange={(value) => patch("country", value)} />
       </div>
     </section>
 
@@ -122,12 +122,12 @@ function CompanyForm({ company }: { company: CompanySettings }) {
     <section className="company-form">
       <div className="section-heading"><div><p className="eyebrow">Institucional</p><h3>Contenido para documentos</h3></div></div>
       <div className="company-form-grid">
-        <TextArea label="Descripcion institucional" value={draft.description ?? ""} readOnly={!canUpdate} onChange={(value) => patch("description", value)} />
+        <TextArea label="Descripción institucional" value={draft.description ?? ""} readOnly={!canUpdate} onChange={(value) => patch("description", value)} />
         <TextArea label="Pie institucional" value={draft.footerText ?? ""} readOnly={!canUpdate} onChange={(value) => patch("footerText", value)} />
       </div>
     </section>
 
-    {invalid && <p className="studio-error" role="alert">Revisa los campos obligatorios, email o sitio web.</p>}
+    {invalid && <p className="studio-error" role="alert">Revisa los campos obligatorios, correo o sitio web.</p>}
     {save.isSuccess && <p className="studio-success" role="status">Cambios guardados.</p>}
     {save.error && <p className="studio-error" role="alert">{save.error.message}</p>}
   </div>;

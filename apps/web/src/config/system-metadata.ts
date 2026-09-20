@@ -45,8 +45,8 @@ export function getSupportMailto(subject = "Soporte GGS Document Studio") {
 export function getDiagnosticInfo(userAgent = typeof navigator !== "undefined" ? navigator.userAgent : undefined) {
   return [
     `Producto: ${systemMetadata.productName}`,
-    `Version: ${systemMetadata.version}`,
-    systemMetadata.build ? `Build: ${systemMetadata.build}` : undefined,
+    `Versión: ${systemMetadata.version}`,
+    systemMetadata.build ? `Compilación: ${systemMetadata.build}` : undefined,
     `Proveedor: ${systemMetadata.productFamily} / ${systemMetadata.vendorName}`,
     userAgent ? `Navegador: ${userAgent}` : undefined,
   ].filter(Boolean).join("\n");
