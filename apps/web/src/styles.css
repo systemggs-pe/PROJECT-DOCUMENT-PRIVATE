@@ -1014,6 +1014,21 @@ summary:focus-visible {
   gap: 0.5rem;
 }
 
+.support-action-list {
+  align-items: start;
+}
+
+.support-action-list > a,
+.support-action-list > span,
+.support-action-list > p {
+  overflow-wrap: anywhere;
+}
+
+.support-action-list > button,
+.support-action-list > a:has(svg) {
+  width: fit-content;
+}
+
 .support-link {
   display: inline-flex;
   align-items: center;
@@ -1728,6 +1743,7 @@ summary:focus-visible {
   place-items: center;
   padding: 1rem;
   background: rgb(23 33 28 / 28%);
+  overscroll-behavior: contain;
 }
 
 .inline-dialog {
@@ -1759,22 +1775,22 @@ summary:focus-visible {
 .image-crop-dialog {
   display: flex;
   flex-direction: column;
-  gap: 0.9rem;
+  gap: 0.85rem;
   width: min(1180px, 96vw);
-  height: min(880px, 92vh);
-  min-height: min(680px, 92vh);
+  height: min(900px, calc(100dvh - 2rem));
+  min-height: min(680px, calc(100dvh - 2rem));
   overflow: hidden;
   padding: 1rem;
   border: 1px solid var(--line);
   background: var(--panel);
-  box-shadow: 0 12px 30px rgb(23 33 28 / 16%);
+  box-shadow: var(--shadow-sheet);
 }
 
 .image-crop-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .image-crop-header h3,
@@ -1782,11 +1798,37 @@ summary:focus-visible {
   margin: 0;
 }
 
-.image-crop-header p:not(.eyebrow) {
+.image-crop-title {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  justify-items: center;
+  gap: 0.15rem;
+  text-align: center;
+}
+
+.image-crop-title h3 {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 1.05rem;
+  font-weight: 760;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-crop-title p {
+  max-width: min(42rem, 100%);
+  overflow: hidden;
   margin-top: 0.2rem;
   color: var(--muted);
   font-size: 0.86rem;
-  word-break: break-word;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-crop-header-button {
+  gap: 0.4rem;
+  min-width: 6.25rem;
 }
 
 .image-crop-layout {
@@ -1801,11 +1843,13 @@ summary:focus-visible {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 360px;
+  min-height: 420px;
   overflow: hidden;
   border: 1px solid var(--line);
   background: #202822;
-  padding: 0.75rem;
+  padding: 0.85rem;
+  touch-action: none;
+  overscroll-behavior: contain;
 }
 
 .image-crop-frame {
@@ -1816,10 +1860,13 @@ summary:focus-visible {
   background: #fff;
   box-shadow: 0 10px 32px rgb(0 0 0 / 28%);
   touch-action: none;
+  cursor: grab;
+  user-select: none;
 }
 
 .image-crop-frame canvas {
   display: block;
+  pointer-events: none;
 }
 
 .image-crop-selection {
@@ -1887,7 +1934,46 @@ summary:focus-visible {
   gap: 0.45rem;
   padding: 0.75rem;
   border: 1px solid var(--line);
+  border-radius: var(--radius-md);
   background: var(--surface);
+}
+
+.crop-control-row,
+.crop-zoom-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.crop-control-row {
+  justify-content: space-between;
+}
+
+.crop-control-row strong {
+  color: var(--ink);
+  font-size: 0.86rem;
+}
+
+.crop-zoom-row input[type="range"] {
+  width: 100%;
+  min-width: 0;
+  accent-color: var(--accent);
+}
+
+.crop-helper,
+.crop-processing {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.crop-processing {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--accent);
+  font-weight: 650;
 }
 
 .crop-control-title {
@@ -1910,7 +1996,7 @@ summary:focus-visible {
   padding: 0 0.8rem;
   border: 1px solid var(--line);
   background: var(--panel);
-  color: var(--text);
+  color: var(--ink);
   font-weight: 700;
 }
 
@@ -1935,11 +2021,13 @@ summary:focus-visible {
 }
 
 .crop-dimensions strong {
-  color: var(--text);
+  color: var(--ink);
 }
 
 .image-crop-actions {
   flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .history-skeleton {
@@ -2826,6 +2914,17 @@ summary:focus-visible {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
+.field input[aria-invalid="true"] {
+  border-color: color-mix(in srgb, var(--danger) 70%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.field-error {
+  color: var(--danger);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
 .status,
 .status-pill,
 .status-badge,
@@ -3039,24 +3138,47 @@ summary:focus-visible {
     width: 100vw;
     height: 100dvh;
     min-height: 0;
-    padding: calc(0.75rem + env(safe-area-inset-top)) 0.75rem calc(0.75rem + env(safe-area-inset-bottom));
+    padding: calc(0.65rem + env(safe-area-inset-top)) 0 0;
     border: 0;
+    border-radius: 0;
   }
 
   .image-crop-header {
-    gap: 0.5rem;
+    gap: 0.45rem;
+    padding: 0 0.75rem 0.65rem;
   }
 
-  .image-crop-header p:not(.eyebrow) {
+  .image-crop-header-button {
+    min-width: auto;
+    min-height: 44px;
+    padding: 0 0.7rem;
+  }
+
+  .image-crop-title h3 {
+    font-size: 0.98rem;
+  }
+
+  .image-crop-title p {
     display: -webkit-box;
     overflow: hidden;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 1;
+    white-space: normal;
+  }
+
+  .image-crop-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 0;
+    overflow: hidden;
   }
 
   .image-crop-stage {
-    min-height: min(48svh, 340px);
-    padding: 0.5rem;
+    min-height: 0;
+    padding: 0.55rem;
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
   }
 
   .image-crop-handle {
@@ -3075,13 +3197,36 @@ summary:focus-visible {
 
   .image-crop-controls {
     grid-template-columns: 1fr;
+    max-height: min(38dvh, 330px);
+    overflow: auto;
+    padding: 0.75rem;
+    border-top: 1px solid var(--line);
+    background: var(--panel);
+  }
+
+  .crop-control-group {
+    padding: 0.7rem;
+  }
+
+  .segmented-actions > button,
+  .crop-aspect-options button {
+    flex: 1 1 8rem;
+    min-height: 44px;
+  }
+
+  .crop-zoom-row button {
+    flex: 0 0 48px;
+  }
+
+  .crop-zoom-row input[type="range"] {
+    min-height: 44px;
   }
 
   .image-crop-actions {
     position: sticky;
-    bottom: calc(-0.75rem - env(safe-area-inset-bottom));
+    bottom: 0;
     justify-content: stretch;
-    margin: 0 -0.75rem calc(-0.75rem - env(safe-area-inset-bottom));
+    margin: 0;
     padding: 0.75rem 0.75rem max(0.75rem, env(safe-area-inset-bottom));
     border-top: 1px solid var(--line);
     background: var(--panel);
@@ -3290,7 +3435,7 @@ summary:focus-visible {
   .admin-row > span:nth-child(3)::before { content: "Estado"; }
   .admin-row > span:nth-child(4)::before { content: "Ultimo acceso"; }
   .admin-row > span:nth-child(5)::before { content: "Acciones"; }
-  .company-row > span:nth-child(1)::before { content: "Empresa"; }
+  .company-row > span:nth-child(1)::before { content: "Titular"; }
   .company-row > span:nth-child(2)::before { content: "Estado"; }
   .company-row > span:nth-child(3)::before { content: "Usuarios"; }
   .company-row > span:nth-child(4)::before { content: "Plantillas"; }

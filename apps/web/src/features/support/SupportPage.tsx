@@ -1,40 +1,43 @@
-import { BookOpen, ClipboardCopy, ExternalLink, LifeBuoy, Mail, Phone, Wrench } from "lucide-react";
+import { BookOpen, ClipboardCopy, ExternalLink, Globe2, LifeBuoy, Mail, MessageCircle, Phone, Wrench } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { getDiagnosticInfo, getSupportMailto, systemMetadata } from "@/config/system-metadata";
+import { getSupportMailto, getSupportPhoneHref, getSupportWhatsAppHref, supportConfig } from "@/config/support-config";
+import { getDiagnosticInfo, systemMetadata } from "@/config/system-metadata";
 
 const faqItems = [
   {
-    question: "¿Cómo creo un documento?",
-    answer: "Entra a Crear documento, selecciona una plantilla, completa los campos requeridos, revisa la vista previa y genera el PDF cuando todo esté correcto.",
+    question: "Como creo un documento?",
+    answer: "Entra a Crear documento, selecciona una plantilla, completa los campos requeridos, revisa la vista previa y genera el PDF cuando todo este correcto.",
   },
   {
-    question: "¿Cómo cargo una imagen o archivo?",
+    question: "Como cargo una imagen o archivo?",
     answer: "Usa la biblioteca de Archivos o los campos de la plantilla. El sistema valida el tipo y peso antes de crear el documento.",
   },
   {
-    question: "¿Cómo reviso el PDF antes de descargarlo?",
+    question: "Como reviso el PDF antes de descargarlo?",
     answer: "La vista Crear documento permite actualizar una vista previa real del PDF antes de generar el documento final.",
   },
   {
-    question: "¿Qué hago si un archivo no carga?",
-    answer: "Verifica que el archivo no esté dañado, que su extensión coincida con el formato y que no supere los límites permitidos.",
+    question: "Que hago si un archivo no carga?",
+    answer: "Verifica que el archivo no este danado, que su extension coincida con el formato y que no supere los limites permitidos.",
   },
 ];
 
 export default function SupportPage() {
   const [copyStatus, setCopyStatus] = useState("");
   const mailto = getSupportMailto();
-  const hasContact = Boolean(systemMetadata.support.email || systemMetadata.support.phone || systemMetadata.support.websiteUrl);
+  const phoneHref = getSupportPhoneHref();
+  const whatsappHref = getSupportWhatsAppHref();
+  const hasContact = Boolean(supportConfig.supportEmail || supportConfig.supportPhone || supportConfig.supportWhatsApp || supportConfig.supportWebsite);
 
   async function copyDiagnosticInfo() {
     const diagnosticInfo = getDiagnosticInfo();
     try {
       await navigator.clipboard.writeText(diagnosticInfo);
-      setCopyStatus("Información del sistema copiada.");
+      setCopyStatus("Informacion del sistema copiada.");
     } catch {
-      setCopyStatus("No se pudo copiar automáticamente.");
+      setCopyStatus("No se pudo copiar automaticamente.");
     }
   }
 
@@ -45,7 +48,7 @@ export default function SupportPage() {
           <p className="eyebrow">Soporte</p>
           <h2>Centro de ayuda</h2>
           <p className="page-subtitle">
-            Información del producto, canales de contacto y datos seguros para reportar problemas.
+            Canales de atencion del proveedor del software e informacion segura para reportar problemas.
           </p>
         </div>
       </header>
@@ -56,9 +59,9 @@ export default function SupportPage() {
             <LifeBuoy className="size-5" aria-hidden={true} />
           </div>
           <div>
-            <p className="eyebrow">Producto</p>
-            <h3>{systemMetadata.productName}</h3>
-            <p>{systemMetadata.poweredBy} · {systemMetadata.productFamily}</p>
+            <p className="eyebrow">Atencion al cliente</p>
+            <h3>{supportConfig.supportName}</h3>
+            <p>{systemMetadata.productName} - {systemMetadata.productFamily}</p>
           </div>
         </article>
 
@@ -68,23 +71,43 @@ export default function SupportPage() {
             <h3>Contacto</h3>
           </div>
           {hasContact ? (
-            <div className="support-list">
-              {systemMetadata.support.email ? (
-                <a href={mailto} className="support-link">{systemMetadata.support.email}</a>
+            <div className="support-list support-action-list">
+              {whatsappHref ? (
+                <Button asChild>
+                  <a href={whatsappHref} target="_blank" rel="noopener noreferrer">
+                    <MessageCircle className="mr-2 size-4" aria-hidden={true} />
+                    WhatsApp
+                  </a>
+                </Button>
               ) : null}
-              {systemMetadata.support.phone ? (
-                <a href={`tel:${systemMetadata.support.phone}`} className="support-link">
-                  <Phone className="size-4" aria-hidden={true} />
-                  {systemMetadata.support.phone}
-                </a>
+              {supportConfig.supportEmail && mailto ? (
+                <Button asChild variant="ghost">
+                  <a href={mailto}>
+                    <Mail className="mr-2 size-4" aria-hidden={true} />
+                    Correo
+                  </a>
+                </Button>
               ) : null}
-              {systemMetadata.support.websiteUrl ? (
-                <a href={systemMetadata.support.websiteUrl} className="support-link" target="_blank" rel="noopener noreferrer">
-                  Sitio de soporte
-                  <ExternalLink className="size-4" aria-hidden={true} />
-                </a>
+              {supportConfig.supportPhone && phoneHref ? (
+                <Button asChild variant="ghost">
+                  <a href={phoneHref}>
+                    <Phone className="mr-2 size-4" aria-hidden={true} />
+                    Llamar
+                  </a>
+                </Button>
               ) : null}
-              {systemMetadata.support.hours ? <p>{systemMetadata.support.hours}</p> : null}
+              {supportConfig.supportWebsite ? (
+                <Button asChild variant="ghost">
+                  <a href={supportConfig.supportWebsite} target="_blank" rel="noopener noreferrer">
+                    <Globe2 className="mr-2 size-4" aria-hidden={true} />
+                    Sitio web
+                  </a>
+                </Button>
+              ) : null}
+              {supportConfig.supportEmail ? <a href={mailto} className="support-link">{supportConfig.supportEmail}</a> : null}
+              {supportConfig.supportPhone && phoneHref ? <a href={phoneHref} className="support-link">{supportConfig.supportPhone}</a> : null}
+              {supportConfig.supportWhatsApp ? <span className="support-muted">WhatsApp: {supportConfig.supportWhatsApp}</span> : null}
+              {supportConfig.supportHours ? <p>{supportConfig.supportHours}</p> : null}
             </div>
           ) : (
             <p className="support-muted">Canal de soporte por configurar.</p>
@@ -94,32 +117,32 @@ export default function SupportPage() {
         <article className="support-card">
           <div className="support-card-heading">
             <BookOpen className="size-5" aria-hidden={true} />
-            <h3>Documentación</h3>
+            <h3>Documentacion</h3>
           </div>
-          {systemMetadata.support.documentationUrl ? (
-            <a href={systemMetadata.support.documentationUrl} className="support-link" target="_blank" rel="noopener noreferrer">
-              Abrir documentación
+          {supportConfig.documentationUrl ? (
+            <a href={supportConfig.documentationUrl} className="support-link" target="_blank" rel="noopener noreferrer">
+              Abrir documentacion
               <ExternalLink className="size-4" aria-hidden={true} />
             </a>
           ) : (
-            <p className="support-muted">Documentación próximamente.</p>
+            <p className="support-muted">Documentacion proximamente.</p>
           )}
         </article>
 
         <article className="support-card">
           <div className="support-card-heading">
             <Wrench className="size-5" aria-hidden={true} />
-            <h3>Información del sistema</h3>
+            <h3>Informacion del sistema</h3>
           </div>
           <dl className="system-info-list">
             <div><dt>Producto</dt><dd>{systemMetadata.productName}</dd></div>
-            <div><dt>Versión</dt><dd>v{systemMetadata.version}</dd></div>
-            <div><dt>Proveedor</dt><dd>{systemMetadata.productFamily} / {systemMetadata.vendorName}</dd></div>
-            {systemMetadata.build ? <div><dt>Compilación</dt><dd>{systemMetadata.build}</dd></div> : null}
+            <div><dt>Version</dt><dd>v{systemMetadata.version}</dd></div>
+            <div><dt>Proveedor</dt><dd>{systemMetadata.productFamily} / {supportConfig.supportName}</dd></div>
+            {systemMetadata.build ? <div><dt>Compilacion</dt><dd>{systemMetadata.build}</dd></div> : null}
           </dl>
           <Button type="button" variant="ghost" className="support-copy-button" onClick={() => void copyDiagnosticInfo()}>
             <ClipboardCopy className="size-4" aria-hidden={true} />
-            Copiar información del sistema
+            Copiar informacion del sistema
           </Button>
           {copyStatus ? <p className="support-copy-status" role="status">{copyStatus}</p> : null}
         </article>
@@ -146,7 +169,7 @@ export default function SupportPage() {
           <h3>Reportar un problema</h3>
         </div>
         <p className="support-muted">
-          Incluye qué intentabas hacer, el mensaje de error, una captura si aplica y la información del sistema copiada desde esta página.
+          Incluye que intentabas hacer, el mensaje de error, una captura si aplica y la informacion del sistema copiada desde esta pagina.
         </p>
         {mailto ? (
           <Button asChild>

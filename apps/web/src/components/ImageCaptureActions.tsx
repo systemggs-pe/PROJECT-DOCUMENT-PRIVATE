@@ -10,7 +10,7 @@ interface ImageCaptureActionsProps {
 const imageAccept = "image/jpeg,image/png,image/webp";
 
 export function ImageCaptureActions({
-  fileLabel = "Seleccionar imagen",
+  fileLabel = "Elegir de galeria",
   cameraLabel = "Tomar foto",
   disabled = false,
   onSelect,

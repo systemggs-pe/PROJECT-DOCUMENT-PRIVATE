@@ -38,7 +38,7 @@ describe("UserSyncService", () => {
     const findUnique = vi.fn().mockResolvedValue({ id: "role-superadmin-id" });
     const create = vi.fn().mockResolvedValue({});
     const transaction = vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => callback({ user: { upsert: vi.fn().mockResolvedValue(syncedUser) }, role: { findUnique }, userRole: { create }, auditLog: { create: vi.fn() } }));
-    const authorization = { getSnapshot: vi.fn().mockResolvedValue({ roles: [{ id: "role-superadmin-id", key: "SUPERADMIN", name: "Superadministrador", isSystem: true }], permissions: ["company.update"] }) } as unknown as AuthorizationService;
+    const authorization = { getSnapshot: vi.fn().mockResolvedValue({ roles: [{ id: "role-superadmin-id", key: "SUPERADMIN", name: "Superadministrador", isSystem: true }], permissions: ["owner.update"] }) } as unknown as AuthorizationService;
     const config = { get: vi.fn((key: string) => key === "SUPERADMIN_EMAIL" ? "admin@example.com" : "") };
     const service = new UserSyncService({ client: { $transaction: transaction } } as unknown as PrismaService, config as never, authorization);
 

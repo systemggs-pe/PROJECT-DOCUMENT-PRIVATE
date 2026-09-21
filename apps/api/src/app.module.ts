@@ -5,7 +5,7 @@ import { AppController } from "./app.controller";
 import { PrismaModule } from "./common/database/prisma.module";
 import { AuditModule } from "./modules/audit/audit.module";
 import { AuthModule } from "./modules/auth/auth.module";
-import { CompanyModule } from "./modules/company/company.module";
+import { OwnerProfileModule } from "./modules/owner-profile/owner-profile.module";
 import { FilesModule } from "./modules/files/files.module";
 import { FileFieldsModule } from "./modules/file-fields/file-fields.module";
 import { GenerationsModule } from "./modules/generations/generations.module";
@@ -25,7 +25,7 @@ import { UsersModule } from "./modules/users/users.module";
     }),
     PrismaModule,
     AuthModule,
-    CompanyModule,
+    OwnerProfileModule,
     UsersModule,
     RolesModule,
     TemplatesModule,

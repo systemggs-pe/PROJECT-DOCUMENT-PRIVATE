@@ -11,6 +11,7 @@ import {
   resizeCrop,
   rotateLeft,
   rotateRight,
+  zoomCropAroundCenter,
 } from "./image-crop";
 
 describe("image crop helpers", () => {
@@ -37,6 +38,16 @@ describe("image crop helpers", () => {
     const crop = resizeCrop({ x: 50, y: 50, width: 300, height: 300 }, { width: 500, height: 500 }, "right", 120, 0, "1:1");
     expect(crop.width).toBeCloseTo(crop.height, 5);
     expect(crop.x + crop.width).toBeLessThanOrEqual(500);
+  });
+
+  it("zooms a crop around its center without leaving bounds", () => {
+    const crop = zoomCropAroundCenter({ x: 100, y: 100, width: 800, height: 600 }, { width: 1200, height: 900 }, "4:3", 3);
+    expect(crop.width / crop.height).toBeCloseTo(4 / 3, 5);
+    expect(crop.width).toBeLessThan(800);
+    expect(crop.x).toBeGreaterThanOrEqual(0);
+    expect(crop.y).toBeGreaterThanOrEqual(0);
+    expect(crop.x + crop.width).toBeLessThanOrEqual(1200);
+    expect(crop.y + crop.height).toBeLessThanOrEqual(900);
   });
 
   it("normalizes and steps rotations", () => {

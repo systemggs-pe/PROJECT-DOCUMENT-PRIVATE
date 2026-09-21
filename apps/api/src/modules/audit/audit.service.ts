@@ -8,7 +8,7 @@ import type { CurrentUser } from "../auth/types/current-user";
 const auditQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(10000).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(30),
-  entityType: z.enum(["USER", "ROLE", "PERMISSION", "COMPANY_SETTINGS", "TEMPLATE", "TEMPLATE_VERSION", "TEMPLATE_ELEMENT", "GENERATION", "GENERATION_INPUT", "STORED_FILE"]).optional(),
+  entityType: z.enum(["USER", "ROLE", "PERMISSION", "COMPANY_SETTINGS", "OWNER_PROFILE", "TEMPLATE", "TEMPLATE_VERSION", "TEMPLATE_ELEMENT", "GENERATION", "GENERATION_INPUT", "STORED_FILE"]).optional(),
   action: z.enum(["CREATE", "UPDATE", "DELETE", "DOWNLOAD", "GENERATE", "LOGIN", "ASSIGN", "REMOVE"]).optional(),
 }).strict();
 

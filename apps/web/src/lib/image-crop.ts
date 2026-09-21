@@ -14,6 +14,8 @@ export interface ImageDimensions {
 }
 
 export const minimumCropSize = 24;
+export const minCropZoom = 1;
+export const maxCropZoom = 5;
 
 export function normalizeRotation(rotation: number): Rotation {
   const normalized = ((rotation % 360) + 360) % 360;
@@ -98,6 +100,28 @@ export function applyAspectAroundCenter(crop: CropRect, bounds: ImageDimensions,
 
 export function moveCrop(crop: CropRect, bounds: ImageDimensions, deltaX: number, deltaY: number): CropRect {
   return clampCrop({ ...crop, x: crop.x + deltaX, y: crop.y + deltaY }, bounds, "free");
+}
+
+export function cropZoomValue(crop: CropRect, bounds: ImageDimensions): number {
+  const zoom = Math.min(bounds.width / crop.width, bounds.height / crop.height);
+  return clampFinite(zoom, minCropZoom, maxCropZoom);
+}
+
+export function zoomCropAroundCenter(crop: CropRect, bounds: ImageDimensions, aspect: CropAspect, zoom: number): CropRect {
+  const safeZoom = clampFinite(zoom, minCropZoom, maxCropZoom);
+  const centerX = crop.x + crop.width / 2;
+  const centerY = crop.y + crop.height / 2;
+  const currentRatio = crop.width / crop.height;
+  const ratio = aspectRatioValue(aspect) ?? (Number.isFinite(currentRatio) && currentRatio > 0 ? currentRatio : bounds.width / bounds.height);
+  let width = bounds.width / safeZoom;
+  let height = bounds.height / safeZoom;
+
+  if (width / height > ratio) width = height * ratio;
+  else height = width / ratio;
+
+  width = Math.max(minimumCropSize, Math.min(bounds.width, width));
+  height = Math.max(minimumCropSize, Math.min(bounds.height, height));
+  return clampCrop({ x: centerX - width / 2, y: centerY - height / 2, width, height }, bounds, aspect);
 }
 
 export type CropHandle = "move" | "top-left" | "top" | "top-right" | "right" | "bottom-right" | "bottom" | "bottom-left" | "left";

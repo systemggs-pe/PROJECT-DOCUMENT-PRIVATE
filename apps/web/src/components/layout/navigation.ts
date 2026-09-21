@@ -7,7 +7,7 @@ export const sectionOrder: NavigationSection[] = [
   "templates",
   "files",
   "fileFields",
-  "company",
+  "owner",
   "users",
   "roles",
   "audit",
@@ -29,7 +29,7 @@ export const mobileSectionLabels: Partial<Record<NavigationSection, string>> = {
   templates: "Plantillas",
   files: "Archivos",
   fileFields: "Campos",
-  company: "Empresa",
+  owner: "Titular",
   users: "Usuarios",
   roles: "Roles",
   audit: "Audit",
@@ -43,7 +43,7 @@ export function pathForSection(section: NavigationSection) {
   if (section === "fileFields") return "/file-fields";
   if (section === "files") return "/files";
   if (section === "generations") return "/generations";
-  if (section === "company") return "/company";
+  if (section === "owner") return "/owner";
   if (section === "users") return "/users";
   if (section === "roles") return "/roles";
   if (section === "audit") return "/audit";

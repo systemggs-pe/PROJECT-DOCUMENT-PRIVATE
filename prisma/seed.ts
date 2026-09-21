@@ -14,7 +14,7 @@ const prisma = new PrismaClient({
 
 const permissions = [
   "users.read", "users.create", "users.update", "users.deactivate",
-  "company.read", "company.update",
+  "owner.read", "owner.update",
   "roles.read", "roles.create", "roles.update", "roles.delete",
   "permissions.read", "permissions.assign",
   "templates.read", "templates.create", "templates.update", "templates.delete",
@@ -29,7 +29,7 @@ const rolePermissionMap = {
   SUPERADMIN: permissions,
   ADMIN: [
     "users.read", "users.create", "users.update", "users.deactivate",
-    "company.read", "company.update",
+    "owner.read", "owner.update",
     "roles.read", "roles.create", "roles.update",
     "permissions.read", "permissions.assign",
     "templates.read", "templates.create", "templates.update", "templates.delete",
@@ -50,16 +50,14 @@ const rolePermissionMap = {
 type RoleKey = keyof typeof rolePermissionMap;
 
 async function main(): Promise<void> {
-  await prisma.companySettings.upsert({
+  await prisma.ownerProfile.upsert({
     where: { id: "global" },
     update: {
-      name: "Empresa",
-      country: "Peru",
+      fullName: "",
     },
     create: {
       id: "global",
-      name: "Empresa",
-      country: "Peru",
+      fullName: "",
     },
   });
 

@@ -341,7 +341,7 @@ export default function GeneratePage() {
                           {selected && <Button variant="ghost" size="icon" title={`Quitar ${slot.name}`} aria-label={`Quitar ${slot.name}`} onClick={() => removeFile(slot.key!)}><Trash2 className="size-4" /></Button>}
                         </div>
                         {selected ? <div className="slot-selected"><img src={selected.previewUrl} alt={`Vista previa de ${slot.name}`} /><span title={selected.originalName}>{selected.originalName}</span></div> : <p className="slot-empty">Aún no has seleccionado una imagen.</p>}
-                        <ImageCaptureActions fileLabel={selected ? "Reemplazar imagen" : "Seleccionar imagen"} disabled={uploadMutation.isPending} onSelect={(file) => setCropTarget({ key: slot.key!, file })} />
+                        <ImageCaptureActions fileLabel={selected ? "Reemplazar desde galeria" : "Elegir de galeria"} disabled={uploadMutation.isPending} onSelect={(file) => setCropTarget({ key: slot.key!, file })} />
                       </div>
                     );
                   })}

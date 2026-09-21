@@ -73,6 +73,7 @@ enum AuditEntityType {
   ROLE
   PERMISSION
   COMPANY_SETTINGS
+  OWNER_PROFILE
   TEMPLATE
   TEMPLATE_VERSION
   TEMPLATE_ELEMENT
@@ -82,32 +83,15 @@ enum AuditEntityType {
   FILE_FIELD
 }
 
-model CompanySettings {
-  id             String   @id @default("global")
-  name           String
-  tradeName      String?  @map("trade_name")
-  legalName      String?  @map("legal_name")
-  documentNumber String?  @map("document_number")
-  email          String?
-  phone          String?
-  website        String?
-  address        String?
-  city           String?
-  region         String?
-  country        String?  @default("Peru")
-  logoUrl        String?  @map("logo_url")
-  logoFileId     String?  @map("logo_file_id") @db.Uuid
-  description    String?
-  slogan         String?
-  footerText     String?  @map("footer_text")
-  metadata       Json     @default("{}")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+model OwnerProfile {
+  id        String   @id @default("global")
+  fullName  String   @map("full_name")
+  phone     String?
+  email     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  logoFile StoredFile? @relation("CompanyLogo", fields: [logoFileId], references: [id], onDelete: SetNull)
-
-  @@index([logoFileId])
-  @@map("company_settings")
+  @@map("owner_profiles")
 }
 
 model User {
@@ -319,8 +303,6 @@ model StoredFile {
   generationInputs    GenerationInput[]
   generationAttachments GenerationAttachment[]
   outputForGeneration Generation?       @relation("GenerationOutputFile")
-  logoForCompany      CompanySettings[] @relation("CompanyLogo")
-
   @@index([createdById])
   @@index([fileFieldId])
   @@index([type])

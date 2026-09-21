@@ -1,18 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
-import { Check, LoaderCircle, Maximize2, RotateCcw, RotateCw, X } from "lucide-react";
+import { Check, LoaderCircle, Maximize2, Minus, Plus, RotateCcw, RotateCw, Undo2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
   applyAspectAroundCenter,
   calculateRotatedDimensions,
   clampCrop,
+  cropZoomValue,
   fullCrop,
   initialCrop,
+  maxCropZoom,
+  minCropZoom,
   resizeCrop,
   rotateAndCropImage,
   rotateLeft,
   rotateRight,
   rotateWholeImage,
+  zoomCropAroundCenter,
   type CropAspect,
   type CropHandle,
   type CropRect,
@@ -35,6 +39,17 @@ type DragState = {
   startCrop: CropRect;
 };
 
+type PointerPoint = {
+  x: number;
+  y: number;
+};
+
+type PinchState = {
+  startCrop: CropRect;
+  startDistance: number;
+  startZoom: number;
+};
+
 const handles: Array<{ value: CropHandle; label: string }> = [
   { value: "top-left", label: "Esquina superior izquierda" },
   { value: "top", label: "Borde superior" },
@@ -51,6 +66,8 @@ export function ImageCropEditor({ file, title = "Recortar antes de subir", conte
   const frameRef = useRef<HTMLDivElement | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
+  const activePointersRef = useRef(new Map<number, PointerPoint>());
+  const pinchRef = useRef<PinchState | null>(null);
   const [imageSize, setImageSize] = useState<ImageDimensions | null>(null);
   const [stageSize, setStageSize] = useState({ width: 720, height: 480 });
   const [crop, setCrop] = useState<CropRect | null>(null);
@@ -62,6 +79,8 @@ export function ImageCropEditor({ file, title = "Recortar antes de subir", conte
   const rotatedSize = useMemo(() => imageSize ? calculateRotatedDimensions(imageSize, rotation) : null, [imageSize, rotation]);
   const displaySize = useMemo(() => rotatedSize ? fitInto(rotatedSize, stageSize) : { width: 1, height: 1 }, [rotatedSize, stageSize]);
   const displayScale = rotatedSize ? displaySize.width / rotatedSize.width : 1;
+  const zoomValue = crop && rotatedSize ? cropZoomValue(crop, rotatedSize) : minCropZoom;
+  const zoomPercent = Math.round(zoomValue * 100);
 
   useEffect(() => {
     const nextUrl = URL.createObjectURL(file);
@@ -100,8 +119,13 @@ export function ImageCropEditor({ file, title = "Recortar antes de subir", conte
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape" && !isApplying) onCancel();
     }
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
   }, [isApplying, onCancel]);
 
   const drawPreview = useCallback(() => {
@@ -155,27 +179,68 @@ export function ImageCropEditor({ file, title = "Recortar antes de subir", conte
     setCrop(initialCrop(nextSize, aspectRatio));
   }
 
+  function resetEditor() {
+    if (!imageSize) return;
+    setRotation(0);
+    setAspectRatio("free");
+    setCrop(initialCrop(imageSize, "free"));
+    activePointersRef.current.clear();
+    pinchRef.current = null;
+    dragRef.current = null;
+  }
+
+  function setZoom(nextZoom: number) {
+    if (!rotatedSize || isApplying) return;
+    setCrop((current) => current ? zoomCropAroundCenter(current, rotatedSize, aspectRatio, nextZoom) : current);
+  }
+
   function startDrag(event: PointerEvent, handle: CropHandle) {
     if (!crop || !rotatedSize || isApplying) return;
     event.preventDefault();
     event.stopPropagation();
-    event.currentTarget.setPointerCapture(event.pointerId);
+    frameRef.current?.setPointerCapture(event.pointerId);
+    activePointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (activePointersRef.current.size >= 2) {
+      const [first, second] = Array.from(activePointersRef.current.values());
+      if (!first || !second) return;
+      pinchRef.current = {
+        startCrop: crop,
+        startDistance: distanceBetween(first, second),
+        startZoom: cropZoomValue(crop, rotatedSize),
+      };
+      dragRef.current = null;
+      return;
+    }
     dragRef.current = { handle, startX: event.clientX, startY: event.clientY, startCrop: crop };
   }
 
   function moveDrag(event: PointerEvent) {
-    const drag = dragRef.current;
-    if (!drag || !rotatedSize) return;
+    if (!rotatedSize || !activePointersRef.current.has(event.pointerId)) return;
     event.preventDefault();
+    activePointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const pinch = pinchRef.current;
+    const points = Array.from(activePointersRef.current.values());
+    if (pinch && points.length >= 2) {
+      if (!points[0] || !points[1]) return;
+      const nextDistance = distanceBetween(points[0], points[1]);
+      if (pinch.startDistance > 0) {
+        setCrop(zoomCropAroundCenter(pinch.startCrop, rotatedSize, aspectRatio, pinch.startZoom * (nextDistance / pinch.startDistance)));
+      }
+      return;
+    }
+
+    const drag = dragRef.current;
+    if (!drag) return;
     const deltaX = (event.clientX - drag.startX) / displayScale;
     const deltaY = (event.clientY - drag.startY) / displayScale;
     setCrop(resizeCrop(drag.startCrop, rotatedSize, drag.handle, deltaX, deltaY, aspectRatio));
   }
 
   function stopDrag(event: PointerEvent) {
-    if (!dragRef.current) return;
-    event.currentTarget.releasePointerCapture(event.pointerId);
-    dragRef.current = null;
+    activePointersRef.current.delete(event.pointerId);
+    if (frameRef.current?.hasPointerCapture(event.pointerId)) frameRef.current.releasePointerCapture(event.pointerId);
+    if (activePointersRef.current.size < 2) pinchRef.current = null;
+    if (activePointersRef.current.size === 0) dragRef.current = null;
   }
 
   async function applyCrop() {
@@ -220,12 +285,19 @@ export function ImageCropEditor({ file, title = "Recortar antes de subir", conte
     <div className="inline-dialog-backdrop">
       <section className="image-crop-dialog" role="dialog" aria-modal="true" aria-labelledby="image-crop-title">
         <header className="image-crop-header">
-          <div>
-            <p className="eyebrow">Editor de imagen</p>
+          <Button type="button" variant="ghost" className="image-crop-header-button" onClick={onCancel} disabled={isApplying}>
+            <X className="size-4" aria-hidden={true} />
+            Cancelar
+          </Button>
+          <div className="image-crop-title">
             <h3 id="image-crop-title">{title}</h3>
             <p>{contextName ?? file.name}</p>
           </div>
-          <Button type="button" variant="ghost" size="icon" aria-label="Cerrar editor" onClick={onCancel} disabled={isApplying}><X className="size-4" /></Button>
+          <Button type="button" className="image-crop-header-button" onClick={() => void applyCrop()} disabled={!crop || !imageSize || isApplying}>
+            <LoaderCircle className={`size-4 ${isApplying ? "animate-spin" : "hidden"}`} aria-hidden={true} />
+            <Check className={`size-4 ${isApplying ? "hidden" : ""}`} aria-hidden={true} />
+            Listo
+          </Button>
         </header>
 
         <div className="image-crop-layout">
@@ -235,9 +307,12 @@ export function ImageCropEditor({ file, title = "Recortar antes de subir", conte
                 className="image-crop-frame"
                 ref={frameRef}
                 style={{ width: displaySize.width, height: displaySize.height }}
+                onPointerDown={(event) => startDrag(event, "move")}
                 onPointerMove={moveDrag}
                 onPointerUp={stopDrag}
                 onPointerCancel={stopDrag}
+                role="application"
+                aria-label="Editor tactil de recorte. Arrastra para mover el area de recorte y usa dos dedos para acercar o alejar."
               >
                 <canvas ref={canvasRef} aria-label="Imagen a recortar" />
                 {crop && <div className="image-crop-selection" style={cropStyle} onPointerDown={(event) => startDrag(event, "move")} aria-label="Area de recorte">
@@ -249,6 +324,33 @@ export function ImageCropEditor({ file, title = "Recortar antes de subir", conte
           </div>
 
           <aside className="image-crop-controls" aria-label="Controles de recorte">
+            <div className="crop-control-group crop-zoom-control">
+              <div className="crop-control-row">
+                <span className="crop-control-title">Zoom</span>
+                <strong>{zoomPercent}%</strong>
+              </div>
+              <div className="crop-zoom-row">
+                <Button type="button" variant="ghost" size="icon" aria-label="Alejar imagen" onClick={() => setZoom(zoomValue - 0.25)} disabled={!crop || isApplying}>
+                  <Minus className="size-4" aria-hidden={true} />
+                </Button>
+                <input
+                  type="range"
+                  min={minCropZoom}
+                  max={maxCropZoom}
+                  step="0.05"
+                  value={zoomValue}
+                  aria-label="Zoom de recorte"
+                  aria-valuetext={`${zoomPercent}%`}
+                  disabled={!crop || isApplying}
+                  onChange={(event) => setZoom(Number(event.target.value))}
+                />
+                <Button type="button" variant="ghost" size="icon" aria-label="Acercar imagen" onClick={() => setZoom(zoomValue + 0.25)} disabled={!crop || isApplying}>
+                  <Plus className="size-4" aria-hidden={true} />
+                </Button>
+              </div>
+              <p className="crop-helper">Arrastra con un dedo. Pellizca con dos dedos para acercar o alejar.</p>
+            </div>
+
             <div className="crop-control-group">
               <span className="crop-control-title">Orientacion</span>
               <div className="segmented-actions">
@@ -278,22 +380,25 @@ export function ImageCropEditor({ file, title = "Recortar antes de subir", conte
             </div>
 
             <div className="crop-control-group">
-              <Button type="button" variant="ghost" onClick={() => rotatedSize && setCrop(fullCrop(rotatedSize))} disabled={!rotatedSize || isApplying}><Maximize2 className="mr-2 size-4" />Seleccionar todo</Button>
+              <div className="segmented-actions">
+                <Button type="button" variant="ghost" onClick={resetEditor} disabled={!imageSize || isApplying}><Undo2 className="mr-2 size-4" />Restablecer</Button>
+                <Button type="button" variant="ghost" onClick={() => rotatedSize && setCrop(fullCrop(rotatedSize))} disabled={!rotatedSize || isApplying}><Maximize2 className="mr-2 size-4" />Todo</Button>
+              </div>
             </div>
           </aside>
         </div>
 
         {error ? <p className="studio-error" role="alert">{error}</p> : null}
+        {isApplying ? <p className="crop-processing" role="status"><LoaderCircle className="size-4 animate-spin" aria-hidden={true} />Procesando imagen...</p> : null}
 
         <div className="inline-dialog-actions image-crop-actions">
           <Button type="button" variant="ghost" onClick={() => void applyWithoutCrop()} disabled={!imageSize || isApplying}>
             <Maximize2 className="mr-2 size-4" />Sin recorte
           </Button>
-          <Button type="button" variant="ghost" onClick={onCancel} disabled={isApplying}>Cancelar</Button>
           <Button type="button" onClick={() => void applyCrop()} disabled={!crop || !imageSize || isApplying}>
             <LoaderCircle className={`mr-2 size-4 ${isApplying ? "animate-spin" : "hidden"}`} />
             <Check className={`mr-2 size-4 ${isApplying ? "hidden" : ""}`} />
-            Aplicar
+            Aplicar recorte
           </Button>
         </div>
       </section>
@@ -304,4 +409,8 @@ export function ImageCropEditor({ file, title = "Recortar antes de subir", conte
 function fitInto(size: ImageDimensions, bounds: ImageDimensions): ImageDimensions {
   const scale = Math.min(bounds.width / size.width, bounds.height / size.height, 1);
   return { width: Math.max(1, size.width * scale), height: Math.max(1, size.height * scale) };
+}
+
+function distanceBetween(first: PointerPoint, second: PointerPoint) {
+  return Math.hypot(first.x - second.x, first.y - second.y);
 }
