@@ -30,3 +30,10 @@ prisma/migrations/*/migration_lock.toml
 
 .DS_Store
 Thumbs.db
+
+# Local AI/editor assistant settings
+.agents/
+.claude/
+.codex/
+.impeccable/
+.windsurf/
