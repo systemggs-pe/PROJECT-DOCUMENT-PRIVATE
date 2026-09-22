@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { PrismaService } from "../../common/database/prisma.service";
@@ -90,18 +90,30 @@ export class TemplatesService {
   }
 
   async remove(id: string, user: CurrentUser) {
-    await this.prisma.client.$transaction(async (tx) => {
-      await this.lockOwnedTemplate(tx, id, user);
-      const generationCount = await tx.generation.count({ where: { templateId: id } });
-      if (generationCount > 0) {
-        throw new ConflictException("Esta plantilla ya tiene documentos creados. Archivala para conservar el historial.");
+    try {
+      await this.prisma.client.$transaction(async (tx) => {
+        await this.lockOwnedTemplate(tx, id, user);
+        const versions = await tx.templateVersion.findMany({ where: { templateId: id }, select: { id: true } });
+        const versionIds = versions.map((version) => version.id);
+        const generationWhere: Prisma.GenerationWhereInput = versionIds.length
+          ? { OR: [{ templateId: id }, { templateVersionId: { in: versionIds } }] }
+          : { templateId: id };
+        const generationCount = await tx.generation.count({ where: generationWhere });
+        if (generationCount > 0) {
+          throw new ConflictException("Esta plantilla ya tiene documentos creados. Archívala para conservar el historial.");
+        }
+        await tx.templateElement.deleteMany({ where: { templateVersionId: { in: versionIds } } });
+        await tx.templateVersion.deleteMany({ where: { templateId: id } });
+        await tx.auditLog.create({ data: { userId: user.id, action: "DELETE", entityType: "TEMPLATE", entityId: id, metadata: { event: "TEMPLATE_DELETED_PERMANENTLY" } } });
+        await tx.template.delete({ where: { id } });
+      });
+    } catch (error) {
+      if (error instanceof ConflictException || error instanceof NotFoundException) throw error;
+      if (isTemplateDeleteConstraintError(error)) {
+        throw new ConflictException("No se puede borrar esta plantilla porque ya tiene documentos o datos vinculados. Archívala para conservar el historial.");
       }
-      const versions = await tx.templateVersion.findMany({ where: { templateId: id }, select: { id: true } });
-      await tx.templateElement.deleteMany({ where: { templateVersionId: { in: versions.map((version) => version.id) } } });
-      await tx.templateVersion.deleteMany({ where: { templateId: id } });
-      await tx.auditLog.create({ data: { userId: user.id, action: "DELETE", entityType: "TEMPLATE", entityId: id, metadata: { event: "TEMPLATE_DELETED_PERMANENTLY" } } });
-      await tx.template.delete({ where: { id } });
-    });
+      throw error;
+    }
     return { deleted: true, id };
   }
 
@@ -156,4 +168,12 @@ export function versionData(templateId: string, input: TemplateVersionInput | Te
     pageCount: input.pageCount, marginTop: input.marginTop, marginRight: input.marginRight, marginBottom: input.marginBottom, marginLeft: input.marginLeft,
     elements: { create: input.elements.map((item) => ({ type: item.type, fileFieldId: item.fileFieldId ?? null, name: item.name, key: item.key, page: item.page, x: item.x, y: item.y, width: item.width, height: item.height, rotation: item.rotation, zIndex: item.zIndex, required: item.required, properties: item.properties })) },
   };
+}
+
+function isTemplateDeleteConstraintError(error: unknown) {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    return error.code === "P2003" || error.code === "P2014";
+  }
+
+  return error instanceof Error && /cannot delete|foreign key|constraint/i.test(error.message);
 }

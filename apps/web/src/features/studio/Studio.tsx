@@ -66,7 +66,7 @@ export default function Studio() {
       }
       setNotice("Plantilla borrada permanentemente.");
     },
-    onError: (error) => setNotice(error instanceof Error ? error.message : "No se pudo borrar la plantilla."),
+    onError: (error) => setNotice(templateDeleteErrorMessage(error)),
   });
   const versionMutation = useMutation({
     mutationFn: async ({ templateId, versionId, action }: { templateId: string; versionId: string; action: "activate" | "duplicate" }) => apiJson<Version>(`/templates/${templateId}/versions/${versionId}/${action}`, { method: "POST" }),
@@ -125,5 +125,13 @@ function versionPayload(draft: Draft) {
     marginTop: draft.marginTop, marginRight: draft.marginRight, marginBottom: draft.marginBottom, marginLeft: draft.marginLeft,
     pageCount: draft.pageCount, elements: draft.elements,
   };
+}
+
+function templateDeleteErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+  if (/cannot delete|foreign key|constraint|p2003|p2014/i.test(message)) {
+    return "No se puede borrar permanentemente porque esta plantilla ya tiene documentos o datos vinculados. Usa Archivar para ocultarla sin romper el historial.";
+  }
+  return message || "No se pudo borrar la plantilla.";
 }
 

@@ -48,7 +48,7 @@ describe("TemplatesService", () => {
     await expect(service.remove("template-a", actor("user-a"))).resolves.toEqual({ deleted: true, id: "template-a" });
 
     expect(tx.template.findFirst).toHaveBeenCalledWith({ where: { id: "template-a", createdById: "user-a" }, select: { id: true } });
-    expect(tx.generation.count).toHaveBeenCalledWith({ where: { templateId: "template-a" } });
+    expect(tx.generation.count).toHaveBeenCalledWith({ where: { OR: [{ templateId: "template-a" }, { templateVersionId: { in: ["version-a"] } }] } });
     expect(tx.templateElement.deleteMany).toHaveBeenCalledWith({ where: { templateVersionId: { in: ["version-a"] } } });
     expect(tx.templateVersion.deleteMany).toHaveBeenCalledWith({ where: { templateId: "template-a" } });
     expect(tx.template.delete).toHaveBeenCalledWith({ where: { id: "template-a" } });
@@ -58,7 +58,7 @@ describe("TemplatesService", () => {
     const tx = {
       template: { findFirst: vi.fn().mockResolvedValue({ id: "template-a" }), delete: vi.fn() },
       generation: { count: vi.fn().mockResolvedValue(1) },
-      templateVersion: { findMany: vi.fn(), deleteMany: vi.fn() },
+      templateVersion: { findMany: vi.fn().mockResolvedValue([{ id: "version-a" }]), deleteMany: vi.fn() },
       templateElement: { deleteMany: vi.fn() },
       auditLog: { create: vi.fn() },
     };
