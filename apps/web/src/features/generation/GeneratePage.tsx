@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Download, FileOutput, FileText, ImagePlus, LoaderCircle, Paperclip, Trash2 } from "lucide-react";
+import { Download, FileOutput, ImagePlus, LoaderCircle, Paperclip, Trash2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ImageCaptureActions } from "@/components/ImageCaptureActions";
 import { ImageCropEditor } from "@/components/ImageCropEditor";
 import { PdfViewer } from "@/components/PdfViewer";
 import { Button } from "@/components/ui/button";
-import { apiFetch, apiJson, downloadFile, downloadGeneration } from "@/lib/api";
+import { apiFetch, apiJson, downloadGeneration } from "@/lib/api";
 import type { Generation, TemplatePage } from "@/features/studio/model";
 import { extractVariableKeys } from "./generation-model";
 import type { FilePage, StoredFile } from "@/features/files/file-model";
@@ -31,7 +31,6 @@ export default function GeneratePage() {
   const [message, setMessage] = useState("");
   const [result, setResult] = useState<Generation | null>(null);
   const [cropTarget, setCropTarget] = useState<{ key: string; file: File } | null>(null);
-  const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
   const [fieldFiles, setFieldFiles] = useState<Record<string, AttachmentFile[]>>({});
   const [previewUrl, setPreviewUrl] = useState("");
   const [previewStale, setPreviewStale] = useState(false);
@@ -143,7 +142,6 @@ export default function GeneratePage() {
     setVersionId("");
     setFiles({});
     setFieldFiles({});
-    setAttachments([]);
     setResult(null);
     closePreview();
   }
@@ -156,21 +154,6 @@ export default function GeneratePage() {
       delete next[key];
       return next;
     });
-    markPreviewStale();
-  }
-
-  function addAttachment(file: AttachmentFile) {
-    if (file.type !== "PDF" && file.type !== "DOCUMENT") {
-      setMessage("Solo puedes anexar PDF, DOC o DOCX.");
-      return;
-    }
-    setAttachments((current) => current.some((item) => item.id === file.id) ? current : [...current, file]);
-    setMessage("");
-    markPreviewStale();
-  }
-
-  function removeAttachment(id: string) {
-    setAttachments((current) => current.filter((item) => item.id !== id));
     markPreviewStale();
   }
 
@@ -197,22 +180,6 @@ export default function GeneratePage() {
     markPreviewStale();
   }
 
-  function moveAttachment(id: string, direction: -1 | 1) {
-    setAttachments((current) => {
-      const index = current.findIndex((item) => item.id === id);
-      const nextIndex = index + direction;
-      if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return current;
-      const next = [...current];
-      const currentItem = next[index];
-      const targetItem = next[nextIndex];
-      if (!currentItem || !targetItem) return current;
-      next[index] = targetItem;
-      next[nextIndex] = currentItem;
-      return next;
-    });
-    markPreviewStale();
-  }
-
   function buildGenerationPayload() {
     if (!selectedTemplate || !selectedVersion) throw new Error("Selecciona una plantilla con versión activa.");
     const missing = slots.filter((slot) => slot.required && !files[slot.key!]);
@@ -225,7 +192,7 @@ export default function GeneratePage() {
       requestKey: requestKey.current,
       inputs: Object.fromEntries(Object.entries(files).map(([key, file]) => [key, { storedFileId: file.id }])),
       fileInputs: Object.fromEntries(Object.entries(fieldFiles).map(([key, files]) => [key, { storedFileIds: files.map((file) => file.id) }])),
-      attachments: attachments.map((file, index) => ({ fileId: file.id, order: index })),
+      attachments: [],
       variables,
     };
   }
@@ -294,34 +261,10 @@ export default function GeneratePage() {
               <span><strong>Campos de archivo</strong>{fileSlots.length}</span>
             </div>
 
-            <div className="generation-inputs">
-              <div className="section-heading">
-                <div><p className="eyebrow">Adjuntos</p><h3>PDFs anexos</h3></div>
-                <span className="section-count">{attachments.length}</span>
-              </div>
-              {attachments.length ? (
-                <div className="attachment-list">
-                  {attachments.map((file, index) => (
-                    <div className="attachment-row" key={file.id}>
-                      <span><Paperclip className="size-4" />{index + 1}. {file.originalName}</span>
-                      <div className="file-actions">
-                        <Button variant="ghost" size="icon" title="Subir orden" aria-label={`Subir ${file.originalName}`} disabled={index === 0} onClick={() => moveAttachment(file.id, -1)}><ArrowUp className="size-4" /></Button>
-                        <Button variant="ghost" size="icon" title="Bajar orden" aria-label={`Bajar ${file.originalName}`} disabled={index === attachments.length - 1} onClick={() => moveAttachment(file.id, 1)}><ArrowDown className="size-4" /></Button>
-                        <Button variant="ghost" size="icon" title="Descargar" aria-label={`Descargar ${file.originalName}`} onClick={() => void downloadFile(file.id, file.originalName)}><Download className="size-4" /></Button>
-                        <Button variant="ghost" size="icon" title="Quitar" aria-label={`Quitar ${file.originalName}`} onClick={() => removeAttachment(file.id)}><Trash2 className="size-4" /></Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : <p className="panel-hint">Opcional: agrega PDF, DOC o DOCX de tu biblioteca para unirlos después del documento principal.</p>}
-              <div className="attachment-picker">
-                {libraryFiles.isPending ? <div className="loading-row" role="status"><LoaderCircle className="size-4 animate-spin" />Cargando biblioteca...</div> : libraryFiles.isError ? <p className="studio-error" role="alert">{libraryFiles.error.message}</p> : attachmentCandidates(libraryFiles.data?.items ?? []).length ? attachmentCandidates(libraryFiles.data?.items ?? []).map((file) => {
-                  const selected = attachments.some((item) => item.id === file.id);
-                  return <button className="attachment-option" type="button" key={file.id} disabled={selected} onClick={() => addAttachment(file)} title={file.originalName}><FileText className="size-4" /><span>{file.originalName}</span><small>{selected ? "Agregado" : file.type === "PDF" ? "Agregar PDF" : "Convertir y anexar"}</small></button>;
-                }) : <p className="panel-hint">No hay PDFs o documentos en tu biblioteca. Sube uno desde Archivos para usarlo como anexo.</p>}
-              </div>
-              <p className="panel-hint">Los DOC/DOCX se convierten a PDF antes de anexarse. Si la conversión no está disponible, el sistema mostrará un mensaje claro.</p>
-            </div>
+            <p className="panel-hint">
+              Usa los campos de la plantilla para cargar imágenes, textos y archivos. Los PDF, DOC o DOCX se
+              agregan desde la sección Campos de archivo cuando la plantilla los solicita.
+            </p>
           </section>
 
           <section className="generation-workspace">
@@ -416,7 +359,7 @@ export default function GeneratePage() {
             <span className="generation-action-hint">El PDF se guarda en archivos privados y recibe un número único.</span>
           </div>
 
-          {previewUrl && <section className={`generation-preview ${previewStale ? "is-stale" : ""}`}><div className="section-heading"><div><p className="eyebrow">Vista previa</p><h3>Revisión del PDF</h3>{previewStale && <p className="panel-hint">La vista previa está desactualizada. Actualízala antes de generar desde esta vista.</p>}</div><div className="preview-actions"><Button type="button" variant="ghost" onClick={closePreview}>Volver a editar</Button><Button type="button" variant="ghost" onClick={() => { setMessage(""); previewMutation.mutate(); }} disabled={previewMutation.isPending}>{previewMutation.isPending ? "Actualizando..." : "Actualizar vista previa"}</Button><Button type="button" onClick={() => { setMessage(""); generateMutation.mutate(); }} disabled={previewStale || generateMutation.isPending || previewMutation.isPending}>Generar PDF</Button></div></div><PdfViewer url={previewUrl} title={selectedTemplate.name} fileName="vista-previa.pdf" sections={previewSections(selectedVersion, attachments, fieldFiles)} onDownload={() => downloadObjectUrl(previewUrl, "vista-previa.pdf")} /></section>}
+          {previewUrl && <section className={`generation-preview ${previewStale ? "is-stale" : ""}`}><div className="section-heading"><div><p className="eyebrow">Vista previa</p><h3>Revisión del PDF</h3>{previewStale && <p className="panel-hint">La vista previa está desactualizada. Actualízala antes de generar desde esta vista.</p>}</div><div className="preview-actions"><Button type="button" variant="ghost" onClick={closePreview}>Volver a editar</Button><Button type="button" variant="ghost" onClick={() => { setMessage(""); previewMutation.mutate(); }} disabled={previewMutation.isPending}>{previewMutation.isPending ? "Actualizando..." : "Actualizar vista previa"}</Button><Button type="button" onClick={() => { setMessage(""); generateMutation.mutate(); }} disabled={previewStale || generateMutation.isPending || previewMutation.isPending}>Generar PDF</Button></div></div><PdfViewer url={previewUrl} title={selectedTemplate.name} fileName="vista-previa.pdf" sections={previewSections(selectedVersion, fieldFiles)} onDownload={() => downloadObjectUrl(previewUrl, "vista-previa.pdf")} /></section>}
           {result && <section className="generation-result" role="status"><div><p className="eyebrow">Documento listo</p><h3>{result.number}</h3><p>El documento se creó con la versión {selectedVersion?.versionNumber} de {selectedTemplate.name}.</p></div><Button onClick={() => void downloadGeneration(result.id, `${result.number}.pdf`)}><Download className="mr-2 size-4" />Descargar PDF</Button></section>}
           {cropTarget && <ImageCropEditor file={cropTarget.file} contextName={slots.find((slot) => slot.key === cropTarget.key)?.name ?? cropTarget.file.name} onCancel={() => setCropTarget(null)} onApply={(file) => { const key = cropTarget.key; const slot = slots.find((entry) => entry.key === key); setCropTarget(null); markPreviewStale(); uploadMutation.mutate({ key, file, fileFieldId: slot?.fileFieldId }); }} />}
         </>
@@ -467,12 +410,11 @@ function acceptForSlot(properties: { acceptedMimeTypes?: string[] }) {
   return properties.acceptedMimeTypes?.length ? properties.acceptedMimeTypes.join(",") : ".pdf,.doc,.docx";
 }
 
-function previewSections(version: TemplatePage["items"][number]["versions"][number] | undefined, attachments: AttachmentFile[], fieldFiles: Record<string, AttachmentFile[]>) {
+function previewSections(version: TemplatePage["items"][number]["versions"][number] | undefined, fieldFiles: Record<string, AttachmentFile[]>) {
   const fieldFileCount = Object.values(fieldFiles).reduce((total, files) => total + files.length, 0);
   return [
     { label: "Documento principal", detail: `${version?.pageCount ?? 1} página(s)` },
     { label: "Campos de archivo", detail: `${fieldFileCount} archivo(s)` },
-    { label: "Anexos", detail: `${attachments.length} archivo(s)` },
   ];
 }
 

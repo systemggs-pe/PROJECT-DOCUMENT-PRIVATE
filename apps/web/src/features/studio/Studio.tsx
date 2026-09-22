@@ -1,15 +1,11 @@
-import { useMemo, useState } from "react";
-import { Archive, ChevronLeft, ChevronRight, Copy, FilePlus2, ImagePlus, LoaderCircle, Pencil, Plus, RotateCcw, Sparkles } from "lucide-react";
+import { useState } from "react";
+import { ChevronLeft, ChevronRight, Copy, FilePlus2, LoaderCircle, Pencil, Plus, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ImageCaptureActions } from "@/components/ImageCaptureActions";
-import { ImageCropEditor } from "@/components/ImageCropEditor";
 import { Button } from "@/components/ui/button";
-import { apiFetch, apiJson } from "@/lib/api";
+import { apiJson } from "@/lib/api";
 import Editor from "./Editor";
 import { newDraft, toVersionDraft } from "./model";
-import type { Draft, Generation, Template, TemplatePage, Version } from "./model";
-
-interface StoredFile { id: string; originalName: string; mimeType: string; sizeBytes: string; type: "IMAGE" | "PDF" }
+import type { Draft, Template, TemplatePage, Version } from "./model";
 
 function goToTemplateRoute(path: string) {
   if (window.location.pathname !== path) window.history.pushState(null, "", path);
@@ -73,19 +69,18 @@ export default function Studio() {
   if (templates.isPending) return <div className="loading-row" role="status"><LoaderCircle className="size-4 animate-spin" />Cargando plantillas...</div>;
   if (templates.isError) return <section className="empty-state" role="alert"><h2>No se pudieron cargar las plantillas</h2><p>{templates.error.message}</p><Button onClick={() => void templates.refetch()}>Reintentar</Button></section>;
   return <div className="studio-page">
-    <div className="page-heading"><div><p className="eyebrow">Biblioteca de documentos</p><h2>Plantillas</h2><p className="page-subtitle">Diseña una vez, completa los campos y conserva cada versión.</p></div><div className="flex flex-wrap gap-2"><Button variant="ghost" onClick={() => { setNewMode("example"); setNotice(""); goToTemplateRoute("/templates/new"); }}><Sparkles className="mr-2 size-4" />Ejemplo con DNI y foto</Button><Button onClick={() => { setNewMode("blank"); setNotice(""); goToTemplateRoute("/templates/new"); }}><Plus className="mr-2 size-4" />Nueva plantilla</Button></div></div>
+    <div className="page-heading"><div><p className="eyebrow">Biblioteca de plantillas</p><h2>Plantillas</h2><p className="page-subtitle">Crea, edita o elimina plantillas. La generación de PDF se realiza desde Generar.</p></div><div className="flex flex-wrap gap-2"><Button variant="ghost" onClick={() => { setNewMode("example"); setNotice(""); goToTemplateRoute("/templates/new"); }}><Sparkles className="mr-2 size-4" />Ejemplo editable</Button><Button onClick={() => { setNewMode("blank"); setNotice(""); goToTemplateRoute("/templates/new"); }}><Plus className="mr-2 size-4" />Nueva plantilla</Button></div></div>
     <div className="template-filters"><label className="field"><span>Buscar</span><input value={search} placeholder="Nombre o descripción" onChange={(event) => { setSearch(event.target.value); setPage(1); }} /></label><label className="field"><span>Estado</span><select value={status} onChange={(event) => { setStatus(event.target.value as typeof status); setPage(1); }}><option value="">Todos</option><option value="ACTIVE">Activas</option><option value="DRAFT">Borradores</option><option value="ARCHIVED">Archivadas</option></select></label></div>
     {notice && <p className="studio-success" role="status">{notice}</p>}
     {!items.length ? <section className="empty-state"><FilePlus2 className="size-7" /><h3>{search || status ? "No hay coincidencias" : "Aún no hay plantillas"}</h3><p>{search || status ? "Prueba otro filtro para encontrar una plantilla." : "Empieza con el ejemplo de tres imágenes o crea una hoja en blanco."}</p>{!search && !status && <Button onClick={() => setNewMode("example")}><Sparkles className="mr-2 size-4" />Abrir ejemplo</Button>}</section> : <div className="template-list">
       {items.map((template) => <article className={`template-row ${template.id === selected?.id ? "is-selected" : ""}`} key={template.id}>
         <button type="button" className="min-w-0 flex-1 text-left" onClick={() => { setSelectedId(template.id); goToTemplateRoute(`/templates/${template.id}`); }}><span className="template-name">{template.name}</span><span className="template-description">{template.description || "Sin descripción"}</span></button>
         <div className="template-meta"><span>{template.versions.length} versión{template.versions.length === 1 ? "" : "es"}</span><span>{template.status === "ACTIVE" ? "Activa" : template.status === "ARCHIVED" ? "Archivada" : "Borrador"}</span></div>
-        <div className="flex items-center gap-1"><Button variant="ghost" size="icon" title="Editar versión activa" aria-label="Editar versión activa" onClick={() => { const version = template.versions.find((item) => item.isActive) ?? template.versions[0]; if (version) { setEditing({ template, version }); setNotice(""); setEditorKey((key) => key + 1); goToTemplateRoute(`/templates/${template.id}/versions/${version.id}/edit`); } }}><Pencil className="size-4" /></Button>{template.status === "ARCHIVED" ? <Button variant="ghost" size="icon" title="Restaurar plantilla" aria-label="Restaurar plantilla" onClick={() => statusMutation.mutate({ id: template.id, action: "restore" })}><RotateCcw className="size-4" /></Button> : <Button variant="ghost" size="icon" title="Archivar plantilla" aria-label="Archivar plantilla" onClick={() => { if (window.confirm("¿Archivar esta plantilla?")) statusMutation.mutate({ id: template.id, action: "archive" }); }}><Archive className="size-4" /></Button>}</div>
+        <div className="flex items-center gap-1"><Button variant="ghost" size="icon" title="Editar plantilla" aria-label="Editar plantilla" onClick={() => { const version = template.versions.find((item) => item.isActive) ?? template.versions[0]; if (version) { setEditing({ template, version }); setNotice(""); setEditorKey((key) => key + 1); goToTemplateRoute(`/templates/${template.id}/versions/${version.id}/edit`); } }}><Pencil className="size-4" /></Button>{template.status === "ARCHIVED" ? <Button variant="ghost" size="icon" title="Restaurar plantilla" aria-label="Restaurar plantilla" onClick={() => statusMutation.mutate({ id: template.id, action: "restore" })}><RotateCcw className="size-4" /></Button> : <Button variant="ghost" size="icon" title="Eliminar plantilla" aria-label="Eliminar plantilla" onClick={() => { if (window.confirm("¿Eliminar esta plantilla?\n\nSe ocultará de las plantillas activas y podrás restaurarla desde Archivadas.")) statusMutation.mutate({ id: template.id, action: "archive" }); }}><Trash2 className="size-4" /></Button>}</div>
       </article>)}
     </div>}
     {templates.data && templates.data.totalPages > 1 && <nav className="pagination" aria-label="Paginación de plantillas"><Button variant="ghost" size="icon" aria-label="Página anterior" title="Página anterior" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}><ChevronLeft className="size-4" /></Button><span>Página {page} de {templates.data.totalPages}</span><Button variant="ghost" size="icon" aria-label="Página siguiente" title="Página siguiente" disabled={page >= templates.data.totalPages} onClick={() => setPage((value) => value + 1)}><ChevronRight className="size-4" /></Button></nav>}
     {selected && <TemplateDetail template={selected} onEdit={(version) => { setEditing({ template: selected, version }); setNotice(""); setEditorKey((key) => key + 1); goToTemplateRoute(`/templates/${selected.id}/versions/${version.id}/edit`); }} onVersionAction={(versionId, action) => versionMutation.mutate({ templateId: selected.id, versionId, action })} />}
-    {selected?.status === "ACTIVE" && <GenerationPanel template={selected} onGenerated={() => { void cache.invalidateQueries({ queryKey: ["studio", "generations"] }); setNotice("Documento creado y guardado en el historial."); }} />}
   </div>;
 }
 
@@ -111,44 +106,3 @@ function versionPayload(draft: Draft) {
   };
 }
 
-function GenerationPanel({ template, onGenerated }: { template: Template; onGenerated: () => void }) {
-  const version = template.versions.find((item) => item.isActive) ?? template.versions[0];
-  const slots = useMemo(() => version?.elements.filter((item) => item.type === "IMAGE") ?? [], [version]);
-  const [files, setFiles] = useState<Record<string, StoredFile>>({});
-  const [pendingImage, setPendingImage] = useState<{ key: string; file: File; label: string; fileFieldId?: string | null | undefined } | null>(null);
-  const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState(false);
-  if (!version) return null;
-  const activeVersion = version;
-  function handleSelectedImage(key: string, label: string, file: File | undefined, fileFieldId?: string | null | undefined) {
-    if (!file) return;
-    setMessage("");
-    setPendingImage({ key, file, label, fileFieldId });
-  }
-  async function uploadImage(key: string, file: File, fileFieldId?: string | null | undefined) {
-    if (!file) return;
-    setMessage(""); setBusy(true);
-    try {
-      const form = new FormData(); form.append("file", file);
-      if (fileFieldId) form.append("fileFieldId", fileFieldId);
-      const response = await apiFetch("/files", { method: "POST", body: form });
-      if (!response.ok) { const error = await response.json().catch(() => ({})) as { error?: { message?: string } }; throw new Error(error.error?.message ?? "No se pudo cargar la imagen."); }
-      const uploaded = await response.json() as StoredFile;
-      setFiles((current) => ({ ...current, [key]: uploaded }));
-    } catch (error) { setMessage(error instanceof Error ? error.message : "No se pudo cargar la imagen."); }
-    finally { setBusy(false); }
-  }
-  async function generate() {
-    setMessage("");
-    const missing = slots.filter((slot) => slot.required && (!slot.key || !files[slot.key]));
-    if (missing.length) { setMessage("Carga todas las imagenes obligatorias antes de generar."); return; }
-    setBusy(true);
-    try {
-      const generation = await apiJson<Generation>("/generations", { method: "POST", body: JSON.stringify({ templateVersionId: activeVersion.id, requestKey: crypto.randomUUID(), inputs: Object.entries(files).map(([key, file]) => ({ key, fileId: file.id })) }) });
-      if (generation.status !== "COMPLETED") throw new Error(generation.errorMessage ?? "No se pudo completar la creación del documento.");
-      setMessage(`${generation.number} listo para descargar desde Generaciones.`); onGenerated();
-    } catch (error) { setMessage(error instanceof Error ? error.message : "No se pudo generar el documento."); }
-    finally { setBusy(false); }
-  }
-  return <section className="generation-panel"><div><p className="eyebrow">Probar plantilla</p><h3>Crear documento</h3><p className="text-sm text-[var(--muted)]">Versión {activeVersion.versionNumber}, {slots.length} campo{slots.length === 1 ? "" : "s"} de imagen.</p></div><div className="slot-grid">{slots.map((slot) => <div className="upload-slot" key={slot.id}><span><ImagePlus className="size-4" />{slot.name}{slot.required ? " *" : ""}</span><ImageCaptureActions disabled={busy} onSelect={(file) => handleSelectedImage(slot.key ?? slot.id, slot.name, file, slot.fileFieldId)} /><small>{slot.key && files[slot.key] ? files[slot.key]?.originalName : "PNG, JPG o WebP, máximo 10 MB"}</small></div>)}</div>{message && <p className={message.includes("listo") ? "studio-success" : "studio-error"} role="status">{message}</p>}<Button onClick={() => void generate()} disabled={busy}><LoaderCircle className={`mr-2 size-4 ${busy ? "animate-spin" : "hidden"}`} />Crear PDF</Button>{pendingImage && <ImageCropEditor file={pendingImage.file} contextName={pendingImage.label} onCancel={() => setPendingImage(null)} onApply={(file) => { const key = pendingImage.key; const fileFieldId = pendingImage.fileFieldId; setPendingImage(null); void uploadImage(key, file, fileFieldId); }} />}</section>;
-}

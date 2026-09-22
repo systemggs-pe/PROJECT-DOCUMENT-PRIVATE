@@ -1519,13 +1519,31 @@ summary:focus-visible {
 
 .history-head,
 .history-row {
-  grid-template-columns: 1.2fr 1.5fr 1fr 1.2fr 2.5rem;
+  grid-template-columns: minmax(7rem, 0.9fr) minmax(0, 1.5fr) minmax(4.5rem, 0.55fr) minmax(7rem, 0.8fr) minmax(8.5rem, 1fr) auto;
   border-bottom: 1px solid var(--line);
 }
 
 .history-head {
   background: var(--surface-elevated);
   font-weight: 650;
+}
+
+.history-number,
+.history-template,
+.history-version,
+.history-date {
+  min-width: 0;
+}
+
+.history-template {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-fields-table .history-head,
+.file-fields-table .history-row {
+  grid-template-columns: minmax(8rem, 1.1fr) minmax(8rem, 0.9fr) minmax(12rem, 1.2fr) minmax(6rem, 0.7fr) auto;
 }
 
 .history-row time {
@@ -3021,9 +3039,16 @@ summary:focus-visible {
     gap: 0.7rem;
   }
 
+  .history-create-button,
+  .page-heading > button,
   .page-heading > div:last-child,
   .studio-heading > button {
     width: 100%;
+  }
+
+  .history-create-button {
+    justify-content: center;
+    min-height: 44px;
   }
 
   .page-heading h2,
@@ -3093,12 +3118,79 @@ summary:focus-visible {
   }
 
   .history-table {
-    overflow-x: auto;
+    display: grid;
+    gap: 0.75rem;
+    overflow: visible;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
   }
 
-  .history-head,
+  .history-head {
+    display: none;
+  }
+
   .history-row {
-    min-width: 650px;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 0.55rem 0.75rem;
+    padding: 0.9rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--panel);
+  }
+
+  .history-number {
+    overflow-wrap: anywhere;
+    font-size: 1rem;
+  }
+
+  .history-template,
+  .history-version,
+  .history-status,
+  .history-date {
+    grid-column: 1 / -1;
+  }
+
+  .history-template,
+  .history-version,
+  .history-date {
+    display: grid;
+    gap: 0.12rem;
+    overflow: visible;
+    color: var(--muted);
+    font-size: 0.82rem;
+    white-space: normal;
+  }
+
+  .history-template::before,
+  .history-version::before,
+  .history-status::before,
+  .history-date::before {
+    color: var(--muted);
+    font-size: 0.68rem;
+    font-weight: 760;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .history-template::before { content: "Plantilla"; }
+  .history-version::before { content: "Version"; }
+  .history-status::before { content: "Estado"; }
+  .history-date::before { content: "Fecha"; }
+
+  .history-status {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.2rem 0.45rem;
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  .history-actions {
+    grid-column: 2;
+    grid-row: 1;
   }
 
   .document-desk {

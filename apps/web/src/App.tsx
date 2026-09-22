@@ -32,7 +32,7 @@ const sections = {
   },
   templates: {
     title: "Plantillas",
-    description: "Plantillas y documentos.",
+    description: "Crear, editar y eliminar.",
     icon: Layers3,
   },
   generate: {
@@ -47,7 +47,7 @@ const sections = {
   },
   fileFields: {
     title: "Requisitos de archivos",
-    description: "Archivos solicitados en plantillas.",
+    description: "Opciones para plantillas.",
     icon: ClipboardList,
   },
   generations: {
@@ -67,7 +67,7 @@ const sections = {
   },
   roles: {
     title: "Roles",
-    description: "Permisos de trabajo.",
+    description: "Accesos de usuarios.",
     icon: ShieldCheck,
   },
   audit: {
