@@ -81,6 +81,8 @@ export function ImageCropEditor({ file, title = "Recortar antes de subir", conte
   const displayScale = rotatedSize ? displaySize.width / rotatedSize.width : 1;
   const zoomValue = crop && rotatedSize ? cropZoomValue(crop, rotatedSize) : minCropZoom;
   const zoomPercent = Math.round(zoomValue * 100);
+  const cropTitle = contextName ? `Recortar ${formatContextName(contextName)}` : title;
+  const cropSubtitle = contextName ? "Evidencias" : file.name;
 
   useEffect(() => {
     const nextUrl = URL.createObjectURL(file);
@@ -285,15 +287,18 @@ export function ImageCropEditor({ file, title = "Recortar antes de subir", conte
     <div className="inline-dialog-backdrop">
       <section className="image-crop-dialog" role="dialog" aria-modal="true" aria-labelledby="image-crop-title">
         <header className="image-crop-header">
-          <Button type="button" variant="ghost" className="image-crop-header-button" onClick={onCancel} disabled={isApplying}>
+          <Button type="button" variant="ghost" className="image-crop-header-button image-crop-cancel-top" onClick={onCancel} disabled={isApplying}>
             <X className="size-4" aria-hidden={true} />
             Cancelar
           </Button>
           <div className="image-crop-title">
-            <h3 id="image-crop-title">{title}</h3>
-            <p>{contextName ?? file.name}</p>
+            <p>{cropSubtitle}</p>
+            <h3 id="image-crop-title">{cropTitle}</h3>
           </div>
-          <Button type="button" className="image-crop-header-button" onClick={() => void applyCrop()} disabled={!crop || !imageSize || isApplying}>
+          <Button type="button" variant="ghost" className="image-crop-header-button image-crop-close-top" onClick={onCancel} disabled={isApplying} aria-label="Cerrar editor de recorte">
+            <X className="size-5" aria-hidden={true} />
+          </Button>
+          <Button type="button" className="image-crop-header-button image-crop-apply-top" onClick={() => void applyCrop()} disabled={!crop || !imageSize || isApplying}>
             <LoaderCircle className={`size-4 ${isApplying ? "animate-spin" : "hidden"}`} aria-hidden={true} />
             <Check className={`size-4 ${isApplying ? "hidden" : ""}`} aria-hidden={true} />
             Listo
@@ -395,6 +400,9 @@ export function ImageCropEditor({ file, title = "Recortar antes de subir", conte
           <Button type="button" variant="ghost" onClick={() => void applyWithoutCrop()} disabled={!imageSize || isApplying}>
             <Maximize2 className="mr-2 size-4" />Sin recorte
           </Button>
+          <Button type="button" variant="ghost" onClick={onCancel} disabled={isApplying}>
+            Cancelar
+          </Button>
           <Button type="button" onClick={() => void applyCrop()} disabled={!crop || !imageSize || isApplying}>
             <LoaderCircle className={`mr-2 size-4 ${isApplying ? "animate-spin" : "hidden"}`} />
             <Check className={`mr-2 size-4 ${isApplying ? "hidden" : ""}`} />
@@ -413,4 +421,9 @@ function fitInto(size: ImageDimensions, bounds: ImageDimensions): ImageDimension
 
 function distanceBetween(first: PointerPoint, second: PointerPoint) {
   return Math.hypot(first.x - second.x, first.y - second.y);
+}
+
+function formatContextName(value: string) {
+  const normalized = value.trim().replace(/\s+/g, " ").toLocaleLowerCase("es-PE");
+  return normalized.replace(/(^|\s)(dni|pdf|docx?|ruc)(?=\s|$)/gi, (match) => match.toLocaleUpperCase("es-PE"));
 }
