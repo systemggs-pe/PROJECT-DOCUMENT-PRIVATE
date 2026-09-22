@@ -89,6 +89,22 @@ export class TemplatesService {
     return this.findOwnedOrThrow(id, user);
   }
 
+  async remove(id: string, user: CurrentUser) {
+    await this.prisma.client.$transaction(async (tx) => {
+      await this.lockOwnedTemplate(tx, id, user);
+      const generationCount = await tx.generation.count({ where: { templateId: id } });
+      if (generationCount > 0) {
+        throw new ConflictException("Esta plantilla ya tiene documentos creados. Archivala para conservar el historial.");
+      }
+      const versions = await tx.templateVersion.findMany({ where: { templateId: id }, select: { id: true } });
+      await tx.templateElement.deleteMany({ where: { templateVersionId: { in: versions.map((version) => version.id) } } });
+      await tx.templateVersion.deleteMany({ where: { templateId: id } });
+      await tx.auditLog.create({ data: { userId: user.id, action: "DELETE", entityType: "TEMPLATE", entityId: id, metadata: { event: "TEMPLATE_DELETED_PERMANENTLY" } } });
+      await tx.template.delete({ where: { id } });
+    });
+    return { deleted: true, id };
+  }
+
   async listOwned(user: CurrentUser, rawQuery: unknown = {}) {
     const query = parseTemplateListQuery(rawQuery);
     const where = {

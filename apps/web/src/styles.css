@@ -942,7 +942,7 @@ summary:focus-visible {
 
 .support-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
   gap: 1rem;
 }
 
@@ -960,6 +960,14 @@ summary:focus-visible {
   align-items: center;
   border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
   background: color-mix(in srgb, var(--accent) 7%, var(--panel));
+}
+
+.support-contact-card {
+  align-content: start;
+}
+
+.support-system-card {
+  grid-column: 1 / -1;
 }
 
 .support-hero h3,
@@ -1018,6 +1026,16 @@ summary:focus-visible {
   align-items: start;
 }
 
+.support-button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.support-button-row a {
+  min-height: 2.5rem;
+}
+
 .support-action-list > a,
 .support-action-list > span,
 .support-action-list > p {
@@ -1053,7 +1071,7 @@ summary:focus-visible {
 
 .system-info-list div {
   display: grid;
-  grid-template-columns: minmax(90px, 0.4fr) minmax(0, 1fr);
+  grid-template-columns: minmax(90px, 0.28fr) minmax(0, 1fr);
   gap: 0.75rem;
   padding-bottom: 0.55rem;
   border-bottom: 1px solid var(--line);
@@ -3739,6 +3757,31 @@ summary:focus-visible {
   .generation-config,
   .property-panel {
     padding: 0.9rem;
+  }
+
+  .support-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .support-hero {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .support-button-row,
+  .support-button-row a,
+  .support-copy-button {
+    width: 100%;
+  }
+
+  .support-button-row a,
+  .support-copy-button {
+    justify-content: center;
+  }
+
+  .system-info-list div {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
   }
 
   .section-heading {

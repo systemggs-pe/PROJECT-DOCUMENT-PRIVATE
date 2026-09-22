@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Copy, FilePlus2, LoaderCircle, Pencil, Plus, RotateCcw, Sparkles, Trash2 } from "lucide-react";
+import { Archive, ChevronLeft, ChevronRight, Copy, FilePlus2, LoaderCircle, Pencil, Plus, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { apiJson } from "@/lib/api";
@@ -54,6 +54,19 @@ export default function Studio() {
   const statusMutation = useMutation({
     mutationFn: async ({ id, action }: { id: string; action: "archive" | "restore" }) => apiJson<Template>(`/templates/${id}/${action}`, { method: "POST" }),
     onSuccess: (_, variables) => { void cache.invalidateQueries({ queryKey: ["studio", "templates"] }); setNotice(variables.action === "archive" ? "Plantilla archivada." : "Plantilla restaurada."); },
+    onError: (error) => setNotice(error instanceof Error ? error.message : "No se pudo cambiar el estado de la plantilla."),
+  });
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => apiJson<{ deleted: boolean; id: string }>(`/templates/${id}`, { method: "DELETE" }),
+    onSuccess: (_, id) => {
+      void cache.invalidateQueries({ queryKey: ["studio", "templates"] });
+      if (selectedId === id) {
+        setSelectedId("");
+        goToTemplateRoute("/templates");
+      }
+      setNotice("Plantilla borrada permanentemente.");
+    },
+    onError: (error) => setNotice(error instanceof Error ? error.message : "No se pudo borrar la plantilla."),
   });
   const versionMutation = useMutation({
     mutationFn: async ({ templateId, versionId, action }: { templateId: string; versionId: string; action: "activate" | "duplicate" }) => apiJson<Version>(`/templates/${templateId}/versions/${versionId}/${action}`, { method: "POST" }),
@@ -76,7 +89,15 @@ export default function Studio() {
       {items.map((template) => <article className={`template-row ${template.id === selected?.id ? "is-selected" : ""}`} key={template.id}>
         <button type="button" className="min-w-0 flex-1 text-left" onClick={() => { setSelectedId(template.id); goToTemplateRoute(`/templates/${template.id}`); }}><span className="template-name">{template.name}</span><span className="template-description">{template.description || "Sin descripción"}</span></button>
         <div className="template-meta"><span>{template.versions.length} versión{template.versions.length === 1 ? "" : "es"}</span><span>{template.status === "ACTIVE" ? "Activa" : template.status === "ARCHIVED" ? "Archivada" : "Borrador"}</span></div>
-        <div className="flex items-center gap-1"><Button variant="ghost" size="icon" title="Editar plantilla" aria-label="Editar plantilla" onClick={() => { const version = template.versions.find((item) => item.isActive) ?? template.versions[0]; if (version) { setEditing({ template, version }); setNotice(""); setEditorKey((key) => key + 1); goToTemplateRoute(`/templates/${template.id}/versions/${version.id}/edit`); } }}><Pencil className="size-4" /></Button>{template.status === "ARCHIVED" ? <Button variant="ghost" size="icon" title="Restaurar plantilla" aria-label="Restaurar plantilla" onClick={() => statusMutation.mutate({ id: template.id, action: "restore" })}><RotateCcw className="size-4" /></Button> : <Button variant="ghost" size="icon" title="Eliminar plantilla" aria-label="Eliminar plantilla" onClick={() => { if (window.confirm("¿Eliminar esta plantilla?\n\nSe ocultará de las plantillas activas y podrás restaurarla desde Archivadas.")) statusMutation.mutate({ id: template.id, action: "archive" }); }}><Trash2 className="size-4" /></Button>}</div>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" title="Editar plantilla" aria-label="Editar plantilla" onClick={() => { const version = template.versions.find((item) => item.isActive) ?? template.versions[0]; if (version) { setEditing({ template, version }); setNotice(""); setEditorKey((key) => key + 1); goToTemplateRoute(`/templates/${template.id}/versions/${version.id}/edit`); } }}><Pencil className="size-4" /></Button>
+          {template.status === "ARCHIVED" ? (
+            <Button variant="ghost" size="icon" title="Restaurar plantilla" aria-label="Restaurar plantilla" disabled={statusMutation.isPending} onClick={() => statusMutation.mutate({ id: template.id, action: "restore" })}><RotateCcw className="size-4" /></Button>
+          ) : (
+            <Button variant="ghost" size="icon" title="Archivar plantilla" aria-label="Archivar plantilla" disabled={statusMutation.isPending} onClick={() => { if (window.confirm("¿Archivar esta plantilla?\n\nLa plantilla se ocultará de las activas, pero podrás restaurarla desde Archivadas.")) statusMutation.mutate({ id: template.id, action: "archive" }); }}><Archive className="size-4" /></Button>
+          )}
+          <Button variant="ghost" size="icon" title="Borrar plantilla permanentemente" aria-label="Borrar plantilla permanentemente" disabled={deleteMutation.isPending} onClick={() => { if (window.confirm("¿Borrar esta plantilla permanentemente?\n\nEsta acción no se puede deshacer. Si la plantilla ya tiene documentos creados, el sistema no permitirá borrarla.")) deleteMutation.mutate(template.id); }}><Trash2 className="size-4" /></Button>
+        </div>
       </article>)}
     </div>}
     {templates.data && templates.data.totalPages > 1 && <nav className="pagination" aria-label="Paginación de plantillas"><Button variant="ghost" size="icon" aria-label="Página anterior" title="Página anterior" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}><ChevronLeft className="size-4" /></Button><span>Página {page} de {templates.data.totalPages}</span><Button variant="ghost" size="icon" aria-label="Página siguiente" title="Página siguiente" disabled={page >= templates.data.totalPages} onClick={() => setPage((value) => value + 1)}><ChevronRight className="size-4" /></Button></nav>}

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Patch, Post, Put, Query } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Patch, Post, Put, Query } from "@nestjs/common";
 
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { Permissions } from "../auth/decorators/permissions.decorator";
@@ -39,6 +39,13 @@ export class TemplatesController {
   @HttpCode(HttpStatus.OK)
   restore(@Param("id", new ParseUUIDPipe()) id: string, @CurrentUser() user: CurrentUserType) {
     return this.templatesService.restore(id, user);
+  }
+
+  @Delete(":id")
+  @Permissions("templates.delete")
+  @HttpCode(HttpStatus.OK)
+  remove(@Param("id", new ParseUUIDPipe()) id: string, @CurrentUser() user: CurrentUserType) {
+    return this.templatesService.remove(id, user);
   }
 
   @Get()

@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
 
 import type { PrismaService } from "../../common/database/prisma.service";
@@ -32,6 +32,42 @@ describe("TemplatesService", () => {
 
     await expect(service.findOwnedOrThrow("template-b", actor("user-a"))).rejects.toBeInstanceOf(NotFoundException);
     expect(findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "template-b", createdById: "user-a" } }));
+  });
+
+  it("permanently deletes templates without generated documents", async () => {
+    const tx = {
+      template: { findFirst: vi.fn().mockResolvedValue({ id: "template-a" }), delete: vi.fn().mockResolvedValue({}) },
+      generation: { count: vi.fn().mockResolvedValue(0) },
+      templateVersion: { findMany: vi.fn().mockResolvedValue([{ id: "version-a" }]), deleteMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      templateElement: { deleteMany: vi.fn().mockResolvedValue({ count: 2 }) },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    };
+    const transaction = vi.fn(async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx));
+    const service = new TemplatesService({ client: { $transaction: transaction } } as unknown as PrismaService);
+
+    await expect(service.remove("template-a", actor("user-a"))).resolves.toEqual({ deleted: true, id: "template-a" });
+
+    expect(tx.template.findFirst).toHaveBeenCalledWith({ where: { id: "template-a", createdById: "user-a" }, select: { id: true } });
+    expect(tx.generation.count).toHaveBeenCalledWith({ where: { templateId: "template-a" } });
+    expect(tx.templateElement.deleteMany).toHaveBeenCalledWith({ where: { templateVersionId: { in: ["version-a"] } } });
+    expect(tx.templateVersion.deleteMany).toHaveBeenCalledWith({ where: { templateId: "template-a" } });
+    expect(tx.template.delete).toHaveBeenCalledWith({ where: { id: "template-a" } });
+  });
+
+  it("blocks permanent deletion when the template has generated documents", async () => {
+    const tx = {
+      template: { findFirst: vi.fn().mockResolvedValue({ id: "template-a" }), delete: vi.fn() },
+      generation: { count: vi.fn().mockResolvedValue(1) },
+      templateVersion: { findMany: vi.fn(), deleteMany: vi.fn() },
+      templateElement: { deleteMany: vi.fn() },
+      auditLog: { create: vi.fn() },
+    };
+    const transaction = vi.fn(async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx));
+    const service = new TemplatesService({ client: { $transaction: transaction } } as unknown as PrismaService);
+
+    await expect(service.remove("template-a", actor("user-a"))).rejects.toBeInstanceOf(ConflictException);
+    expect(tx.template.delete).not.toHaveBeenCalled();
+    expect(tx.templateVersion.deleteMany).not.toHaveBeenCalled();
   });
 });
 
