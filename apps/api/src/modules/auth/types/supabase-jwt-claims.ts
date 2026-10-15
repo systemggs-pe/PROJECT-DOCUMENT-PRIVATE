@@ -1,4 +1,4 @@
-import type { JWTPayload } from "jose";
+import type { JWTPayload } from "jose" with { "resolution-mode": "import" };
 
 export interface SupabaseJwtClaims extends JWTPayload {
   sub: string;

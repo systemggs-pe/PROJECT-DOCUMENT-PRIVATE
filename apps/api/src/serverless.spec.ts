@@ -27,7 +27,7 @@ beforeAll(async () => {
   vi.stubEnv("SUPABASE_JWT_SECRET", "test-only");
   vi.stubEnv("NODE_ENV", "production");
   vi.stubEnv("CORS_ORIGIN", "https://frontend.example.com");
-  adapter = await import("./serverless");
+  adapter = await import("./serverless.js");
 });
 afterEach(() => vi.restoreAllMocks());
 afterAll(async () => { await state.app?.close(); vi.unstubAllEnvs(); });
