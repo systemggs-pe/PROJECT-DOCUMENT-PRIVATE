@@ -1,0 +1,36 @@
+[build]
+  base = "."
+  command = "pnpm build:netlify"
+  publish = "netlify/public"
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "24"
+  PNPM_VERSION = "11.19.0"
+  PNPM_FLAGS = "--prod=false --frozen-lockfile"
+  NODE_ENV = "production"
+
+[functions]
+  node_bundler = "nft"
+  included_files = [
+    "node_modules/.pnpm/@prisma+client*/node_modules/.prisma/client/**",
+    "node_modules/.pnpm/pdfkit@*/node_modules/pdfkit/js/standard-fonts/**",
+    "node_modules/.pnpm/pdfkit@*/node_modules/pdfkit/js/data/**"
+  ]
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+  force = true
+
+[dev]
+  framework = "#static"
+  publish = "netlify/public"
+  port = 8888

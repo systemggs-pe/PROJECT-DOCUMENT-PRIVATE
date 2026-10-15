@@ -23,7 +23,10 @@
     "verify:phase9": "node docs/examples/verify-phase9.mjs",
     "verify:phase10": "node docs/examples/verify-phase10.mjs",
     "verify:phase11": "node docs/examples/verify-phase11.mjs",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "build:netlify": "pnpm db:generate && pnpm --filter @ggs/api... build",
+    "dev:netlify": "netlify dev --filter @ggs/api",
+    "bundle:netlify": "netlify build --offline --filter @ggs/api"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
@@ -34,6 +37,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "netlify-cli": "^27.12.1",
     "prettier": "^3.7.4",
     "prisma": "^7.2.0",
     "tsx": "^4.21.0",

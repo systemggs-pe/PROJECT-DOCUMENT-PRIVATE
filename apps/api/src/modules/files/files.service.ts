@@ -8,12 +8,12 @@ import { PrismaService } from "../../common/database/prisma.service";
 import { resourceScope } from "../auth/access-scope";
 import type { CurrentUser } from "../auth/types/current-user";
 
-const maxImageBytes = 10 * 1024 * 1024;
-const maxDocumentBytes = 10 * 1024 * 1024;
+const maxImageBytes = 3 * 1024 * 1024;
+const maxDocumentBytes = 3 * 1024 * 1024;
 const signedUrlTtlSeconds = 300;
 const allowedInputMimeTypes = ["image/jpeg", "image/png", "image/webp"] as const;
-const allowedDocumentMimeTypes = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"] as const;
-const allowedExtensions = new Set([".jpg", ".jpeg", ".png", ".webp", ".pdf", ".doc", ".docx"]);
+const allowedDocumentMimeTypes = ["application/pdf"] as const;
+const allowedExtensions = new Set([".jpg", ".jpeg", ".png", ".webp", ".pdf"]);
 const filesQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(10000).default(1),
   pageSize: z.coerce.number().int().min(1).max(50).default(12),
@@ -32,7 +32,7 @@ export class FilesService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService, @Inject(StorageService) private readonly storage?: StorageService) {}
 
   async upload(user: CurrentUser, file: { buffer: Buffer; originalname: string; mimetype: string } | undefined, rawContext: unknown = {}) {
-    if (!file) throw new BadRequestException("Selecciona un archivo permitido de hasta 10 MB.");
+    if (!file) throw new BadRequestException("Selecciona un archivo permitido de hasta 3 MB.");
     const upload = await prepareUpload(file);
     const context = parseUploadContext(rawContext);
     const fileField = context.fileFieldId ? await this.validateFileFieldUpload(user, context.fileFieldId, upload) : null;
@@ -160,7 +160,7 @@ type PreparedUpload = {
   type: "IMAGE" | "PDF" | "DOCUMENT";
   data: Buffer;
   mimeType: string;
-  extension: ".jpg" | ".pdf" | ".doc" | ".docx";
+  extension: ".jpg" | ".pdf";
   width: number | null;
   height: number | null;
 };
@@ -179,31 +179,28 @@ async function prepareImageUpload(file: { buffer: Buffer; originalname: string; 
     if (!["jpeg", "png", "webp"].includes(metadata.format ?? "") || (metadata.pages ?? 1) !== 1) throw new Error("Invalid image");
     normalized = await image.rotate().flatten({ background: "#ffffff" }).jpeg({ quality: 94 }).toBuffer({ resolveWithObject: true });
   } catch { throw new BadRequestException("La imagen esta danada, es animada o supera 20 megapixeles."); }
+  if (normalized.data.length > maxImageBytes) throw new BadRequestException("La imagen normalizada supera 3 MB.");
   return { type: "IMAGE", data: normalized.data, mimeType: "image/jpeg", extension: ".jpg", width: normalized.info.width, height: normalized.info.height };
 }
 
 function prepareDocumentUpload(file: { buffer: Buffer; originalname: string; mimetype: string }): PreparedUpload {
   const extension = extensionOf(file.originalname);
-  if (file.buffer.length > maxDocumentBytes) throw new BadRequestException("El archivo supera el tamano permitido de 10 MB.");
+  if (file.buffer.length > maxDocumentBytes) throw new BadRequestException("El archivo supera el tamano permitido de 3 MB.");
   if (!allowedDocumentMimeTypes.includes(file.mimetype as typeof allowedDocumentMimeTypes[number])) throw new BadRequestException("Este formato de archivo no esta permitido.");
   if (file.mimetype === "application/pdf") {
     if (extension !== ".pdf" || !hasPdfSignature(file.buffer)) throw new BadRequestException("El PDF no coincide con su extension o contenido.");
     return { type: "PDF", data: file.buffer, mimeType: "application/pdf", extension: ".pdf", width: null, height: null };
   }
-  if (file.mimetype === "application/msword") {
-    if (extension !== ".doc" || !hasDocSignature(file.buffer)) throw new BadRequestException("El documento DOC no coincide con su extension o contenido.");
-    return { type: "DOCUMENT", data: file.buffer, mimeType: file.mimetype, extension: ".doc", width: null, height: null };
-  }
-  if (extension !== ".docx" || !hasZipSignature(file.buffer)) throw new BadRequestException("El documento DOCX no coincide con su extension o contenido.");
-  return { type: "DOCUMENT", data: file.buffer, mimeType: file.mimetype, extension: ".docx", width: null, height: null };
+  throw new BadRequestException("Solo se admiten documentos PDF.");
 }
 
 function validateUpload(file: { buffer: Buffer; originalname: string; mimetype: string } | undefined): asserts file is { buffer: Buffer; originalname: string; mimetype: string } {
-  if (!file) throw new BadRequestException("Selecciona un archivo permitido de hasta 10 MB.");
+  if (!file) throw new BadRequestException("Selecciona un archivo permitido de hasta 3 MB.");
+  if (/\.docx?$/i.test(file.originalname) || file.mimetype === "application/msword" || file.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") throw new BadRequestException("Word ya no esta permitido. Sube un PDF.");
   if (!allowedExtensions.has(extensionOf(file.originalname))) throw new BadRequestException("La extension del archivo no esta permitida.");
   const allowedMime = [...allowedInputMimeTypes, ...allowedDocumentMimeTypes].includes(file.mimetype as typeof allowedInputMimeTypes[number] | typeof allowedDocumentMimeTypes[number]);
   if (!allowedMime) throw new BadRequestException("Este formato de archivo no esta permitido.");
-  if (file.buffer.length > maxImageBytes) throw new BadRequestException("El archivo supera el tamano permitido de 10 MB.");
+  if (file.buffer.length > maxImageBytes) throw new BadRequestException("El archivo supera el tamano permitido de 3 MB.");
 }
 
 function sanitizeOriginalName(value: string) {
@@ -218,12 +215,4 @@ function extensionOf(value: string) {
 
 function hasPdfSignature(buffer: Buffer) {
   return buffer.subarray(0, 5).toString("ascii") === "%PDF-";
-}
-
-function hasDocSignature(buffer: Buffer) {
-  return buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]));
-}
-
-function hasZipSignature(buffer: Buffer) {
-  return buffer.length >= 4 && buffer.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04]));
 }

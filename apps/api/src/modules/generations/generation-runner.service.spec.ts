@@ -130,7 +130,7 @@ describe("GenerationRunnerService", () => {
     expect(tx.generation.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ attachments: { create: [{ fileId: attachmentId, order: 0 }] } }) }));
   });
 
-  it("converts DOCX attachments before merging them between PDFs", async () => {
+  it("rejects historical Word before rendering, reserving a number or writing storage", async () => {
     const mainPdf = await makePdf("principal");
     const firstAttachment = await makePdf("anexo-1");
     const convertedDocx = await makePdf("docx-convertido");
@@ -150,7 +150,7 @@ describe("GenerationRunnerService", () => {
     storage.read.mockResolvedValueOnce(Buffer.from("image")).mockResolvedValueOnce(firstAttachment).mockResolvedValueOnce(docxContent).mockResolvedValueOnce(secondAttachment);
     const service = makeRunner(tx, storage, vi.fn().mockResolvedValue(mainPdf), undefined, converter);
 
-    await service.generate(actor(userId), {
+    await expect(service.generate(actor(userId), {
       templateVersionId: versionId,
       requestKey: "12121212-1212-4212-8212-121212121212",
       inputs: [{ key: "photo", fileId: imageId }],
@@ -159,12 +159,10 @@ describe("GenerationRunnerService", () => {
         { fileId: documentId, order: 1 },
         { fileId: "ffffffff-ffff-4fff-8fff-ffffffffffff", order: 2 },
       ],
-    });
-
-    const uploadedPdf = storage.put.mock.calls[0]?.[1] as Buffer;
-    const merged = await PDFDocument.load(uploadedPdf);
-    expect(merged.getPageCount()).toBe(4);
-    expect(converter.convertToPdf).toHaveBeenCalledWith({ data: docxContent, originalName: "contrato.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+    })).rejects.toThrow("Word");
+    expect(storage.put).not.toHaveBeenCalled();
+    expect(converter.convertToPdf).not.toHaveBeenCalled();
+    expect(tx.generation.create).not.toHaveBeenCalled();
   });
 });
 

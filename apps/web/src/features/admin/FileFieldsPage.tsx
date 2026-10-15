@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { can, useCurrentIdentity } from "@/features/auth/authorization";
 import { apiJson } from "@/lib/api";
-import { describeMimeTypes, type FileField } from "@/features/file-fields/file-field-model";
+import { describeMimeTypes, mimeOptions, type FileField } from "@/features/file-fields/file-field-model";
 import { useFileFields } from "@/features/file-fields/useFileFields";
 
 type Draft = {
@@ -26,15 +26,13 @@ const emptyDraft: Draft = {
   required: false,
   acceptedMimeTypes: ["application/pdf"],
   maxFiles: 1,
-  maxFileSizeMb: 10,
+  maxFileSizeMb: 3,
   isActive: true,
   sortOrder: 100,
 };
 
 const fileTypePresets = [
   { key: "pdf", label: "Solo PDF", values: ["application/pdf"] },
-  { key: "word", label: "Word", values: ["application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"] },
-  { key: "pdf-word", label: "PDF o Word", values: ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"] },
   { key: "image", label: "Imágenes", values: ["image/jpeg", "image/png", "image/webp"] },
 ] as const;
 
@@ -86,9 +84,9 @@ export default function FileFieldsPage() {
       label: field.label,
       description: field.description ?? "",
       required: field.required,
-      acceptedMimeTypes: field.acceptedMimeTypes,
+      acceptedMimeTypes: field.acceptedMimeTypes.filter((mime) => mimeOptions.some((option) => option.value === mime)),
       maxFiles: field.maxFiles,
-      maxFileSizeMb: Math.max(1, Math.round(field.maxFileSize / 1024 / 1024)),
+      maxFileSizeMb: Math.min(3, Math.max(1, Math.round(field.maxFileSize / 1024 / 1024))),
       isActive: field.isActive,
       sortOrder: field.sortOrder,
     });
@@ -117,7 +115,7 @@ export default function FileFieldsPage() {
         <label className="field"><span>Ayuda para el usuario</span><input value={draft.description} maxLength={500} placeholder="Ejemplo: Adjunta el contrato firmado." onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
         <label className="field"><span>Tipo de archivo</span><select value={presetForMimeTypes(draft.acceptedMimeTypes)} onChange={(event) => setDraft({ ...draft, acceptedMimeTypes: valuesForPreset(event.target.value) })}>{fileTypePresets.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}</select></label>
         <label className="field"><span>Máximo de archivos</span><input type="number" min={1} max={20} value={draft.maxFiles} onChange={(event) => setDraft({ ...draft, maxFiles: Number(event.target.value) })} /></label>
-        <label className="field"><span>Tamaño por archivo</span><select value={draft.maxFileSizeMb} onChange={(event) => setDraft({ ...draft, maxFileSizeMb: Number(event.target.value) })}><option value={5}>5 MB</option><option value={10}>10 MB</option><option value={20}>20 MB</option><option value={30}>30 MB</option></select></label>
+        <label className="field"><span>Tamaño por archivo</span><select value={draft.maxFileSizeMb} onChange={(event) => setDraft({ ...draft, maxFileSizeMb: Number(event.target.value) })}><option value={1}>1 MB</option><option value={2}>2 MB</option><option value={3}>3 MB</option></select></label>
       </div>
       <div className="form-flags"><label className="inline-check"><input type="checkbox" checked={draft.required} onChange={(event) => setDraft({ ...draft, required: event.target.checked })} />Obligatorio por defecto</label><label className="inline-check"><input type="checkbox" checked={draft.isActive} onChange={(event) => setDraft({ ...draft, isActive: event.target.checked })} />Activo</label></div>
       <div className="form-actions"><Button variant="ghost" type="button" onClick={() => setDraft(emptyDraft)}>Cancelar</Button><Button type="button" disabled={save.isPending || !draft.label.trim() || draft.acceptedMimeTypes.length === 0 || (!draft.id && !canCreate) || (Boolean(draft.id) && !canUpdate)} onClick={() => save.mutate(draft)}>{save.isPending ? "Guardando..." : "Guardar requisito"}</Button></div>

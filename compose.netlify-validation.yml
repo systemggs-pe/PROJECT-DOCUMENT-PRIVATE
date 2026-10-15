@@ -1,0 +1,45 @@
+name: ggs-netlify-validation
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ggs_netlify_validation
+      POSTGRES_USER: ggs_validation
+      POSTGRES_PASSWORD: validation-only-local
+    volumes:
+      - validation_postgres:/var/lib/postgresql/data
+    networks: [validation]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ggs_validation -d ggs_netlify_validation"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  validator:
+    build:
+      context: .
+      dockerfile: tools/netlify-validation/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      GGS_ISOLATED_VALIDATION: "1"
+      DATABASE_URL: postgresql://ggs_validation:validation-only-local@postgres:5432/ggs_netlify_validation
+      DATABASE_POOL_MAX: "2"
+      SUPABASE_URL: https://example.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: test-placeholder-not-a-secret
+      SUPABASE_JWT_SECRET: test-only-isolated-validation
+      CORS_ORIGIN: https://frontend.example.com
+      NODE_ENV: test
+      CHECKPOINT_DISABLE: "1"
+      PRISMA_HIDE_UPDATE_MESSAGE: "true"
+      NETLIFY_TELEMETRY_DISABLED: "1"
+    networks: [validation]
+
+volumes:
+  validation_postgres:
+
+networks:
+  validation:
+    internal: true

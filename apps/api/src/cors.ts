@@ -4,8 +4,10 @@ const DEFAULT_CORS_ORIGINS = [
   "https://web-ggs-e214.vercel.app",
 ];
 
-export function getCorsOrigins(configuredValue: string | undefined): string[] {
-  return uniqueOrigins([...DEFAULT_CORS_ORIGINS, ...parseCorsOrigins(configuredValue ?? "")]);
+export function getCorsOrigins(configuredValue: string | undefined, nodeEnv = process.env.NODE_ENV): string[] {
+  return nodeEnv === "production"
+    ? parseCorsOrigins(configuredValue ?? "")
+    : uniqueOrigins([...DEFAULT_CORS_ORIGINS, ...parseCorsOrigins(configuredValue ?? "")]);
 }
 
 export function isCorsOriginAllowed(

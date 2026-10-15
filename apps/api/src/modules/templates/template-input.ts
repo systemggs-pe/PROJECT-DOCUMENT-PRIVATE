@@ -2,7 +2,7 @@ import { BadRequestException } from "@nestjs/common";
 import { z } from "zod";
 
 const color = z.string().regex(/^#[0-9a-fA-F]{6}$/);
-const fileMime = z.enum(["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]);
+const fileMime = z.enum(["application/pdf"]);
 const element = z.object({
   id: z.string().uuid(), type: z.enum(["IMAGE", "FILE", "TEXT", "RECTANGLE", "LINE"]),
   fileFieldId: z.string().uuid().nullable().optional(),
@@ -21,9 +21,9 @@ const element = z.object({
     color: color.default("#17211c"), fill: color.default("#eef2f4"), stroke: color.default("#63716a"),
     strokeWidth: z.number().min(0).max(10).default(1),
     fileRenderMode: z.enum(["ATTACH", "PLACE"]).default("ATTACH"),
-    acceptedMimeTypes: z.array(fileMime).max(8).default(["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]),
+    acceptedMimeTypes: z.array(fileMime).max(8).default(["application/pdf"]),
     maxFiles: z.number().int().min(1).max(20).default(1),
-    maxSizeBytes: z.number().int().positive().max(30 * 1024 * 1024).default(10 * 1024 * 1024),
+    maxSizeBytes: z.number().int().positive().max(3 * 1024 * 1024).default(3 * 1024 * 1024),
   }).strict(),
 }).strict();
 

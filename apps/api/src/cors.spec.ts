@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { getCorsOrigins, isCorsOriginAllowed, parseCorsOrigins } from "./cors";
 
 describe("CORS policy", () => {
-  it("allows the deployed Vercel frontend by default", () => {
-    expect(isCorsOriginAllowed("https://web-ggs-e214.vercel.app", getCorsOrigins(undefined), "production")).toBe(true);
+  it("requires explicit production origins", () => {
+    expect(isCorsOriginAllowed("https://web-ggs-e214.vercel.app", getCorsOrigins(undefined, "production"), "production")).toBe(false);
   });
 
   it("allows configured exact origins and trims trailing slashes", () => {

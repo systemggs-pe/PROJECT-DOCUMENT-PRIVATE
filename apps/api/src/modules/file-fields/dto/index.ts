@@ -6,8 +6,6 @@ export const allowedFileFieldMimeTypes = [
   "image/png",
   "image/webp",
   "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ] as const;
 
 const mimeSchema = z.enum(allowedFileFieldMimeTypes);
@@ -19,7 +17,7 @@ const baseSchema = z.object({
   required: z.boolean().default(false),
   acceptedMimeTypes: z.array(mimeSchema).min(1).max(8),
   maxFiles: z.number().int().min(1).max(20).default(1),
-  maxFileSize: z.number().int().min(1).max(30 * 1024 * 1024).default(10 * 1024 * 1024),
+  maxFileSize: z.number().int().min(1).max(3 * 1024 * 1024).default(3 * 1024 * 1024),
   isActive: z.boolean().default(true),
   sortOrder: z.number().int().min(0).max(10000).default(0),
 }).strict();
