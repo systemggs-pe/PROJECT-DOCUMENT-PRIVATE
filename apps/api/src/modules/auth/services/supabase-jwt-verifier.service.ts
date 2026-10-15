@@ -1,19 +1,28 @@
 import { Inject, Injectable, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { createRemoteJWKSet, jwtVerify } from "jose";
-import type { JWTVerifyOptions } from "jose";
+import type * as Jose from "jose" with { "resolution-mode": "import" };
 
 import type { SupabaseIdentity } from "../types/current-user";
 import type { SupabaseJwtClaims } from "../types/supabase-jwt-claims";
 
 const DEFAULT_AUDIENCE = "authenticated";
+let joseModule: Promise<typeof Jose> | undefined;
+
+function loadJose(): Promise<typeof Jose> {
+  // Node16 emit keeps this as native import() even though this package is CommonJS.
+  return joseModule ??= import("jose").catch((error: unknown) => {
+    joseModule = undefined;
+    throw error;
+  });
+}
 
 @Injectable()
 export class SupabaseJwtVerifierService {
   private readonly issuer: string | undefined;
   private readonly audience: string;
   private readonly jwtSecret: Uint8Array | undefined;
-  private readonly jwks: ReturnType<typeof createRemoteJWKSet> | undefined;
+  private readonly jwksUrl: string | undefined;
+  private jwks: ReturnType<typeof Jose.createRemoteJWKSet> | undefined;
 
   constructor(@Inject(ConfigService) private readonly configService: ConfigService) {
     const supabaseUrl = normalizeSupabaseUrl(this.configService.get<string>("SUPABASE_URL"));
@@ -23,7 +32,7 @@ export class SupabaseJwtVerifierService {
     this.issuer = supabaseUrl ? `${supabaseUrl}/auth/v1` : undefined;
     this.audience = this.configService.get<string>("SUPABASE_JWT_AUDIENCE") ?? DEFAULT_AUDIENCE;
     this.jwtSecret = jwtSecret ? new TextEncoder().encode(jwtSecret) : undefined;
-    this.jwks = createJwks(jwksUrl, supabaseUrl);
+    this.jwksUrl = jwksUrl ?? (supabaseUrl ? `${supabaseUrl}/auth/v1/.well-known/jwks.json` : undefined);
   }
 
   async verify(accessToken: string): Promise<SupabaseIdentity> {
@@ -46,17 +55,20 @@ export class SupabaseJwtVerifierService {
   }
 
   private async verifyClaims(accessToken: string): Promise<SupabaseJwtClaims> {
-    const options: JWTVerifyOptions = this.issuer
+    const options: Jose.JWTVerifyOptions = this.issuer
       ? { audience: this.audience, issuer: this.issuer }
       : { audience: this.audience };
 
     try {
+      const { createRemoteJWKSet, jwtVerify } = await loadJose();
       if (this.jwtSecret) {
         const { payload } = await jwtVerify(accessToken, this.jwtSecret, options);
         return payload as SupabaseJwtClaims;
       }
 
-      if (this.jwks) {
+      if (this.jwksUrl) {
+        // One resolver per service instance, shared by concurrent invocations.
+        this.jwks ??= createRemoteJWKSet(new URL(this.jwksUrl));
         const { payload } = await jwtVerify(accessToken, this.jwks, options);
         return payload as SupabaseJwtClaims;
       }
@@ -66,11 +78,6 @@ export class SupabaseJwtVerifierService {
 
     throw new UnauthorizedException("Authentication provider is not configured");
   }
-}
-
-function createJwks(jwksUrl: string | undefined, supabaseUrl: string | undefined) {
-  const resolvedUrl = jwksUrl ?? (supabaseUrl ? `${supabaseUrl}/auth/v1/.well-known/jwks.json` : undefined);
-  return resolvedUrl ? createRemoteJWKSet(new URL(resolvedUrl)) : undefined;
 }
 
 function normalizeSupabaseUrl(value: string | undefined): string | undefined {

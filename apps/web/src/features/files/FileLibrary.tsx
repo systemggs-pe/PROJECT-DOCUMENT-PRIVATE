@@ -93,11 +93,11 @@ function FileUploader({ busy, error, onUpload }: { busy: boolean; error: string;
     <div className="upload-dropzone">
       <UploadCloud className="size-6" />
       <span>{selected ? selected.name : "Arrastra una imagen o selecciona un archivo"}</span>
-      <small>JPG, PNG, WebP, PDF, DOC o DOCX, máximo 10 MB. SVG y ejecutables no están permitidos.</small>
+      <small>JPG, JPEG, PNG, WebP o PDF, máximo 3 MB. Word ya no está permitido.</small>
       <label className="image-capture-button">
         <ImagePlus className="size-4" aria-hidden={true} />
         <span>Seleccionar archivo</span>
-        <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.pdf,.doc,.docx" disabled={busy} onChange={(event) => choose(event.currentTarget.files?.[0])} />
+        <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf,.pdf" disabled={busy} onChange={(event) => choose(event.currentTarget.files?.[0])} />
       </label>
     </div>
     {preview && !validation && selected?.type.startsWith("image/") && <img className="upload-preview" src={preview} alt={`Vista previa de ${selected.name}`} />}

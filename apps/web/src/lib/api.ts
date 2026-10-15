@@ -56,7 +56,8 @@ export async function apiJson<T>(path: string, init: RequestInit = {}): Promise<
 }
 
 export async function downloadFile(id: string, name: string) {
-  const response = await apiFetch(`/files/${id}/download`);
+  const { url: signedUrl } = await apiJson<{ url: string }>(`/files/${id}/signed-url`);
+  const response = await fetch(signedUrl);
   if (!response.ok) throw new Error("No se pudo descargar el documento.");
   const url = URL.createObjectURL(await response.blob());
   const anchor = document.createElement("a"); anchor.href = url; anchor.download = name; anchor.click();
@@ -64,7 +65,8 @@ export async function downloadFile(id: string, name: string) {
 }
 
 export async function downloadGeneration(id: string, name: string) {
-  const response = await apiFetch(`/generations/${id}/download`);
+  const { url: signedUrl } = await apiJson<{ url: string }>(`/generations/${id}/signed-url`);
+  const response = await fetch(signedUrl);
   if (!response.ok) throw new Error("No se pudo descargar el PDF.");
   const url = URL.createObjectURL(await response.blob());
   const anchor = document.createElement("a"); anchor.href = url; anchor.download = name; anchor.click();

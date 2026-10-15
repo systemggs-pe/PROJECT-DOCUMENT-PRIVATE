@@ -13,7 +13,7 @@ export class FilesController {
 
   @Post()
   @Permissions("files.upload")
-  @UseInterceptors(FileInterceptor("file", { limits: { fileSize: 10 * 1024 * 1024, files: 1, fields: 3, parts: 5 } }))
+  @UseInterceptors(FileInterceptor("file", { limits: { fileSize: 3 * 1024 * 1024, files: 1, fields: 3, fieldSize: 1024, parts: 5 } }))
   upload(@UploadedFile() file: { buffer: Buffer; originalname: string; mimetype: string } | undefined, @Body() body: Record<string, unknown>, @CurrentUser() user: CurrentUserType) {
     return this.filesService.upload(user, file, body);
   }
@@ -21,8 +21,8 @@ export class FilesController {
   @Get(":id/download")
   @Permissions("files.read")
   async download(@Param("id", new ParseUUIDPipe()) id: string, @CurrentUser() user: CurrentUserType, @Res() res: Response) {
-    const { file, content } = await this.filesService.download(id, user);
-    res.set({ "Content-Type": file.mimeType, "Content-Disposition": `attachment; filename="${downloadName(file.originalName)}"`, "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" }).send(content);
+    const { url } = await this.filesService.signedUrl(id, user);
+    res.set({ "Cache-Control": "private, no-store" }).redirect(302, url);
   }
 
   @Get(":id/signed-url")
@@ -48,8 +48,4 @@ export class FilesController {
   findOne(@Param("id", new ParseUUIDPipe()) id: string, @CurrentUser() user: CurrentUserType) {
     return this.filesService.findOwnedOrThrow(id, user);
   }
-}
-
-function downloadName(value: string) {
-  return value.replace(/["\r\n]/g, "_").slice(0, 160) || "archivo";
 }

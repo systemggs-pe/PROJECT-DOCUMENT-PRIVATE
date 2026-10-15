@@ -40,12 +40,12 @@ describe("FilesService", () => {
     const service = new FilesService({ client: {} } as unknown as PrismaService, storage);
 
     await expect(service.upload(actor(randomUUID()), { buffer: Buffer.from("not an image"), originalname: "payload.svg", mimetype: "image/svg+xml" })).rejects.toBeInstanceOf(BadRequestException);
-    await expect(service.upload(actor(randomUUID()), { buffer: Buffer.alloc(10 * 1024 * 1024 + 1), originalname: "large.jpg", mimetype: "image/jpeg" })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.upload(actor(randomUUID()), { buffer: Buffer.alloc(3 * 1024 * 1024 + 1), originalname: "large.jpg", mimetype: "image/jpeg" })).rejects.toBeInstanceOf(BadRequestException);
     await expect(service.upload(actor(randomUUID()), { buffer: Buffer.from("not an image"), originalname: "renamed.jpg", mimetype: "image/jpeg" })).rejects.toBeInstanceOf(BadRequestException);
     expect(storage.put).not.toHaveBeenCalled();
   });
 
-  it("uploads PDF, DOC, and DOCX files without normalizing them", async () => {
+  it("uploads PDFs unchanged and rejects Word before storage or metadata writes", async () => {
     const created: unknown[] = [];
     const tx = {
       storedFile: { create: vi.fn(async ({ data }) => { created.push(data); return { ...data, createdAt: new Date("2026-09-14T00:00:00Z") }; }) },
@@ -57,13 +57,12 @@ describe("FilesService", () => {
     const user = actor(randomUUID());
 
     await expect(service.upload(user, { buffer: pdf, originalname: "contrato.pdf", mimetype: "application/pdf" })).resolves.toMatchObject({ type: "PDF", mimeType: "application/pdf", originalName: "contrato.pdf" });
-    await expect(service.upload(user, { buffer: doc, originalname: "carta.doc", mimetype: "application/msword" })).resolves.toMatchObject({ type: "DOCUMENT", mimeType: "application/msword", originalName: "carta.doc" });
-    await expect(service.upload(user, { buffer: docx, originalname: "informe.docx", mimetype: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" })).resolves.toMatchObject({ type: "DOCUMENT", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", originalName: "informe.docx" });
+    await expect(service.upload(user, { buffer: doc, originalname: "carta.doc", mimetype: "application/msword" })).rejects.toThrow("Word");
+    await expect(service.upload(user, { buffer: docx, originalname: "informe.docx", mimetype: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" })).rejects.toThrow("Word");
 
     expect(storage.put).toHaveBeenCalledWith(expect.stringMatching(/original\.pdf$/), pdf, "application/pdf");
-    expect(storage.put).toHaveBeenCalledWith(expect.stringMatching(/original\.doc$/), doc, "application/msword");
-    expect(storage.put).toHaveBeenCalledWith(expect.stringMatching(/original\.docx$/), docx, "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-    expect(created).toHaveLength(3);
+    expect(storage.put).toHaveBeenCalledTimes(1);
+    expect(created).toHaveLength(1);
   });
 
   it("does not create metadata when storage upload fails", async () => {

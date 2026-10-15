@@ -1,0 +1,12 @@
+.git
+**/node_modules
+**/dist
+**/.netlify
+**/.env
+**/.env.*
+**/coverage
+**/*.log
+.codex
+.agents
+output
+uploads

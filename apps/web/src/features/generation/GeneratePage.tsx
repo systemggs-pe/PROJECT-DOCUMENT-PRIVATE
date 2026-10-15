@@ -6,6 +6,7 @@ import { ImageCaptureActions } from "@/components/ImageCaptureActions";
 import { ImageCropEditor } from "@/components/ImageCropEditor";
 import { PdfViewer } from "@/components/PdfViewer";
 import { Button } from "@/components/ui/button";
+import { validateFile } from "@/features/files/file-model";
 import { apiFetch, apiJson, downloadGeneration } from "@/lib/api";
 import type { Generation, TemplatePage } from "@/features/studio/model";
 import { extractVariableKeys } from "./generation-model";
@@ -19,7 +20,7 @@ interface SelectedFile {
 
 type AttachmentFile = Pick<StoredFile, "id" | "originalName" | "type" | "mimeType" | "sizeBytes">;
 
-const maxFileBytes = 10 * 1024 * 1024;
+const maxFileBytes = 3 * 1024 * 1024;
 const acceptedMimes = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 export default function GeneratePage() {
@@ -370,7 +371,7 @@ export default function GeneratePage() {
 
 function validateImage(file: File) {
   if (!acceptedMimes.has(file.type)) throw new Error("Selecciona una imagen JPG, PNG o WebP.");
-  if (file.size > maxFileBytes) throw new Error("La imagen supera el límite de 10 MB.");
+  if (file.size > maxFileBytes) throw new Error("La imagen supera el límite de 3 MB.");
 }
 
 function revokePreview(url: string, urls: Set<string>) {
@@ -402,12 +403,14 @@ function fieldMaxFiles(slot: { properties: { fileRenderMode?: string; maxFiles?:
 }
 
 function validateFieldUpload(file: File, properties: { acceptedMimeTypes?: string[]; maxSizeBytes?: number }) {
+  const error = validateFile(file);
+  if (error) throw new Error(error);
   if (properties.acceptedMimeTypes?.length && !properties.acceptedMimeTypes.includes(file.type)) throw new Error(`Este campo acepta unicamente: ${properties.acceptedMimeTypes.join(", ")}.`);
   if (properties.maxSizeBytes && file.size > properties.maxSizeBytes) throw new Error(`El archivo supera el límite de ${Math.round(properties.maxSizeBytes / 1024 / 1024)} MB.`);
 }
 
 function acceptForSlot(properties: { acceptedMimeTypes?: string[] }) {
-  return properties.acceptedMimeTypes?.length ? properties.acceptedMimeTypes.join(",") : ".pdf,.doc,.docx";
+  return properties.acceptedMimeTypes?.length ? properties.acceptedMimeTypes.filter((mime) => mime === "application/pdf").join(",") || ".pdf" : ".pdf";
 }
 
 function previewSections(version: TemplatePage["items"][number]["versions"][number] | undefined, fieldFiles: Record<string, AttachmentFile[]>) {

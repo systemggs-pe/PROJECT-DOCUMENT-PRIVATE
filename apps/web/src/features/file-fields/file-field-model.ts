@@ -23,8 +23,6 @@ export const mimeOptions = [
   { value: "image/png", label: "PNG" },
   { value: "image/webp", label: "WebP" },
   { value: "application/pdf", label: "PDF" },
-  { value: "application/msword", label: "DOC" },
-  { value: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", label: "DOCX" },
 ] as const;
 
 export function describeMimeTypes(values: string[]) {

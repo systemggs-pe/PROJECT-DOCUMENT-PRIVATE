@@ -9,8 +9,10 @@ onlyBuiltDependencies:
 allowBuilds:
   "@prisma/engines": true
   esbuild: true
+  netlify-cli: true
   prisma: true
   sharp: true
+  unix-dgram: false
 
 overrides:
   multer: ^2.3.0

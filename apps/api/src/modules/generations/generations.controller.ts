@@ -39,14 +39,8 @@ export class GenerationsController {
   @Get(":id/download")
   @Permissions("generations.download")
   async download(@Param("id", new ParseUUIDPipe()) id: string, @CurrentUser() user: CurrentUserType, @Res() response: Response) {
-    const result = await this.generationsService.downloadOwned(id, user);
-    response.set({
-      "Cache-Control": "private, no-store",
-      "Content-Disposition": `attachment; filename="${result.generation.number}.pdf"`,
-      "Content-Type": result.file.mimeType,
-      "X-Content-Type-Options": "nosniff",
-    });
-    response.send(result.content);
+    const { url } = await this.generationsService.signedUrlOwned(id, user);
+    response.set({ "Cache-Control": "private, no-store" }).redirect(302, url);
   }
 
   @Get(":id/signed-url")

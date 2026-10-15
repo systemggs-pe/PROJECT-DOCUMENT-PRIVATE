@@ -182,6 +182,7 @@ export class GenerationRunnerService {
       const attachmentIds = [...orderedAttachmentInputs.map((attachment) => attachment.fileId), ...fileInputIds];
       const attachmentFiles = attachmentIds.length ? await tx.storedFile.findMany({ where: { id: { in: attachmentIds }, ...resourceScope(user), type: { in: ["PDF", "DOCUMENT"] }, bucket: this.storage.bucket }, select: { id: true, storageKey: true, bucket: true, type: true, mimeType: true, originalName: true, sizeBytes: true } }) : [];
       if (attachmentFiles.length !== attachmentIds.length || attachmentFiles.some((file) => !isAllowedAttachment(file, user.id))) throw new BadRequestException({ message: "Solo puedes anexar PDFs, DOC o DOCX propios.", error: "INVALID_ATTACHMENT_FILE" });
+      if (attachmentFiles.some((file) => file.type === "DOCUMENT")) throw new BadRequestException("Word ya no se puede convertir. Sustituye el archivo historico por un PDF.");
       const attachmentById = new Map(attachmentFiles.map((file) => [file.id, { ...file, type: file.type as "PDF" | "DOCUMENT" }]));
       const attachments = orderedAttachmentInputs.map((attachment, index) => ({ ...attachmentById.get(attachment.fileId)!, order: index }));
       const fileInputs = input.fileInputs.map((item) => ({ input: item, slot: fileSlotByKey.get(item.key)!, file: attachmentById.get(item.fileId)! }));

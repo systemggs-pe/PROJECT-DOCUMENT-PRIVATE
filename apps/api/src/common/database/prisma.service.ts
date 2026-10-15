@@ -1,4 +1,4 @@
-import { Inject, Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { Inject, Injectable, Logger, ServiceUnavailableException } from "@nestjs/common";
 import type { OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -9,6 +9,7 @@ export type DatabaseHealth = "not_configured" | "connected" | "unreachable";
 
 @Injectable()
 export class PrismaService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(PrismaService.name);
   private readonly pool: Pool | null;
   private readonly prismaClient: PrismaClient | null;
 
@@ -23,7 +24,12 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 
     this.pool = new Pool({
       connectionString: databaseUrl,
+      max: parsePoolMax(configService.get<string>("DATABASE_POOL_MAX")),
+      connectionTimeoutMillis: 5000,
+      idleTimeoutMillis: 10000,
+      allowExitOnIdle: true,
     });
+    this.pool.on("error", () => this.logger.error("An idle PostgreSQL connection failed; the pool will replace it."));
 
     this.prismaClient = new PrismaClient({
       adapter: new PrismaPg(this.pool),
@@ -66,4 +72,10 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
       return "unreachable";
     }
   }
+}
+
+export function parsePoolMax(value: string | undefined): number {
+  const max = Number(value ?? 2);
+  if (!Number.isInteger(max) || max < 1 || max > 10) throw new Error("DATABASE_POOL_MAX must be an integer between 1 and 10");
+  return max;
 }
